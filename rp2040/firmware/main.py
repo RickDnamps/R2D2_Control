@@ -34,7 +34,7 @@ TFT_SCK  = Pin(10)
 TFT_MOSI = Pin(11)
 TFT_DC   = Pin(8,  Pin.OUT)
 TFT_CS   = Pin(9,  Pin.OUT)
-TFT_RST  = Pin(12, Pin.OUT)
+TFT_RST  = Pin(13, Pin.OUT)
 TFT_BL   = Pin(25, Pin.OUT)
 
 I2C_SDA  = Pin(6)
