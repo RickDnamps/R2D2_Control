@@ -3,25 +3,32 @@
 # setup_master_network.sh — Configuration réseau R2-D2 Master
 # =============================================================================
 #
+# ⚠️  INSTALLER LE MASTER EN PREMIER — avant le Slave.
+#     Le Slave a besoin des credentials du hotspot Master pour se configurer.
+#
 # Ce script doit être exécuté UNE SEULE FOIS sur le R2-Master.
 #
 # Ce qu'il fait :
 #   1. Lit les credentials WiFi maison déjà configurés sur wlan0
-#   2. Les sauvegarde dans local.cfg (survit aux git pull)
-#   3. Configure wlan1 (clé USB) pour se connecter au WiFi maison
-#   4. Convertit wlan0 en point d'accès R2D2_Control (192.168.4.1)
+#   2. Demande le SSID/mot de passe du hotspot R2-D2 (personnalisable)
+#   3. Sauvegarde tout dans local.cfg (survit aux git pull)
+#   4. Configure wlan1 (clé USB) pour se connecter au WiFi maison
+#   5. Convertit wlan0 en point d'accès (192.168.4.1)
 #
 # Résultat final :
-#   wlan0  → Hotspot "R2D2_Control"  192.168.4.1  (Slave + télécommande)
+#   wlan0  → Hotspot R2-D2            192.168.4.1  (Slave + télécommande)
 #   wlan1  → WiFi maison              DHCP         (git pull / GitHub)
 #
 # Prérequis :
 #   - Raspberry Pi OS Bookworm 64-bit Lite (NetworkManager actif)
-#   - Pi connecté au WiFi maison via wlan0 (état initial)
+#   - Pi connecté au WiFi maison via wlan0 (configuré via Imager)
 #   - Clé USB WiFi branchée (sera wlan1) OU brancher plus tard
 #
 # Usage :
 #   sudo bash /home/artoo/r2d2/scripts/setup_master_network.sh
+#
+# Note le SSID et mot de passe du hotspot — tu en auras besoin
+# pour configurer le Slave avec setup_slave_network.sh.
 #
 # =============================================================================
 
@@ -31,6 +38,7 @@ REPO_PATH="/home/artoo/r2d2"
 LOCAL_CFG="${REPO_PATH}/master/config/local.cfg"
 LOCAL_CFG_EXAMPLE="${REPO_PATH}/master/config/local.cfg.example"
 
+# Valeurs par défaut du hotspot (modifiables interactivement)
 HOTSPOT_SSID="R2D2_Control"
 HOTSPOT_PASS="r2d2droid"
 HOTSPOT_IP="192.168.4.1/24"
@@ -121,6 +129,40 @@ if [[ -z "$HOME_SSID" ]]; then
 fi
 
 # =============================================================================
+# ÉTAPE 1b — Configurer le hotspot R2-D2 (SSID + mot de passe)
+# =============================================================================
+echo ""
+echo -e "${BLU}--- Hotspot R2-D2 (point d'accès pour le Slave et la télécommande) ---${NC}"
+echo ""
+echo    "  Le R2-Master va créer un réseau WiFi auquel le Slave se connectera."
+echo    "  Tu peux personnaliser le nom et le mot de passe, ou garder les défauts."
+echo ""
+read -r -p "  SSID du hotspot     [${HOTSPOT_SSID}] : " INPUT
+[[ -n "$INPUT" ]] && HOTSPOT_SSID="$INPUT"
+
+while true; do
+    read -r -s -p "  Mot de passe hotspot [${HOTSPOT_PASS}] : " INPUT
+    echo ""
+    if [[ -z "$INPUT" ]]; then
+        break   # garder le défaut
+    fi
+    if [[ ${#INPUT} -lt 8 ]]; then
+        warn "Le mot de passe WPA doit faire au moins 8 caractères — réessayer"
+    else
+        HOTSPOT_PASS="$INPUT"
+        break
+    fi
+done
+
+echo ""
+ok "Hotspot configuré : SSID='${HOTSPOT_SSID}'  (mot de passe enregistré)"
+echo ""
+echo -e "  ${YEL}⚠  Note ces informations — tu en auras besoin pour le Slave :${NC}"
+echo    "     SSID     : ${HOTSPOT_SSID}"
+echo    "     Password : ${HOTSPOT_PASS}"
+echo ""
+
+# =============================================================================
 # ÉTAPE 2 — Sauvegarder dans local.cfg
 # =============================================================================
 echo ""
@@ -158,9 +200,12 @@ cfg_set() {
 
 cfg_set "$LOCAL_CFG" "home_wifi" "ssid"     "$HOME_SSID"
 cfg_set "$LOCAL_CFG" "home_wifi" "password" "$HOME_PASS"
+cfg_set "$LOCAL_CFG" "hotspot"   "ssid"     "$HOTSPOT_SSID"
+cfg_set "$LOCAL_CFG" "hotspot"   "password" "$HOTSPOT_PASS"
 chown artoo:artoo "$LOCAL_CFG"
 
-ok "Credentials WiFi sauvegardés dans local.cfg [home_wifi]"
+ok "Credentials WiFi maison sauvegardés dans local.cfg [home_wifi]"
+ok "Credentials hotspot sauvegardés dans local.cfg [hotspot]"
 
 # =============================================================================
 # ÉTAPE 3 — Configurer wlan1 (clé USB) pour le WiFi maison
@@ -265,25 +310,35 @@ ok "avahi-daemon actif (r2-master.local / r2-slave.local)"
 # =============================================================================
 echo ""
 echo -e "${GRN}========================================${NC}"
-echo -e "${GRN}  Configuration réseau terminée ✓      ${NC}"
+echo -e "${GRN}  Master réseau configuré ✓             ${NC}"
 echo -e "${GRN}========================================${NC}"
 echo ""
-echo -e "  ${BLU}wlan0${NC} → Hotspot permanent"
-echo    "         SSID : ${HOTSPOT_SSID}"
-echo    "         Clé  : ${HOTSPOT_PASS}"
-echo    "         IP   : 192.168.4.1"
+echo -e "  ${BLU}wlan0${NC} → Hotspot R2-D2 (point d'accès)"
+echo    "         SSID     : ${HOTSPOT_SSID}"
+echo    "         Password : ${HOTSPOT_PASS}"
+echo    "         IP fixe  : 192.168.4.1"
 echo ""
-echo -e "  ${BLU}wlan1${NC} → WiFi maison (clé USB)"
-echo    "         SSID : ${HOME_SSID}"
-echo    "         (connexion auto au branchement)"
+echo -e "  ${BLU}wlan1${NC} → WiFi maison / internet (clé USB)"
+echo    "         SSID     : ${HOME_SSID}"
+echo    "         (connexion automatique au branchement)"
 echo ""
-echo -e "  ${YEL}Credentials sauvegardés dans :${NC}"
-echo    "    ${LOCAL_CFG}"
-echo    "    → section [home_wifi]"
+echo -e "  ${BLU}Sauvegardé dans${NC} : ${LOCAL_CFG}"
+echo    "    [home_wifi]  ssid / password"
+echo    "    [hotspot]    ssid / password"
 echo ""
+echo -e "  ${YEL}══════════════════════════════════════${NC}"
+echo -e "  ${YEL}  INFOS POUR CONFIGURER LE SLAVE :     ${NC}"
+echo -e "  ${YEL}══════════════════════════════════════${NC}"
+echo    ""
+echo    "  Sur le R2-Slave, tu auras besoin de :"
+echo -e "  ${GRN}  Hotspot SSID     : ${HOTSPOT_SSID}${NC}"
+echo -e "  ${GRN}  Hotspot Password : ${HOTSPOT_PASS}${NC}"
+echo    ""
+echo    "  Commande Slave (après reboot Master) :"
+echo    "  sudo bash /home/artoo/r2d2/scripts/setup_slave_network.sh"
+echo    ""
 echo -e "  ${YEL}Prochaines étapes :${NC}"
-echo    "    1. Brancher la clé USB WiFi (si pas encore fait)"
+echo    "    1. Brancher la clé USB WiFi sur le Master (si pas encore fait)"
 echo    "    2. sudo reboot"
-echo    "    3. Connecter le R2-Slave au hotspot '${HOTSPOT_SSID}'"
-echo    "    4. Tester : ping 192.168.4.1 (depuis Slave ou téléphone)"
+echo    "    3. Configurer le Slave : setup_slave_network.sh"
 echo ""

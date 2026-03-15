@@ -9,14 +9,37 @@
 
 ---
 
-## Prérequis
+## ⚠️ Ordre d'installation obligatoire
 
-- **R2-Master** : Raspberry Pi 4B 4G — Raspberry Pi OS Lite 64-bit (Bookworm) — fraîchement installé
-- **R2-Slave** : Raspberry Pi 4B 2G — Raspberry Pi OS Lite 64-bit (Bookworm) — fraîchement installé
-- Les deux Pi sont **sur le même réseau Wi-Fi domestique** pour la première installation
-- Ton PC peut les joindre en SSH
-- Git installé sur ton PC
-- **Username sur les deux Pi : `artoo`** (configurer via Raspberry Pi Imager → Options → Username)
+```
+1. R2-Master  (étapes 0 → 2)   ← TOUJOURS EN PREMIER
+2. R2-Slave   (étapes 1b → 2b) ← seulement après le reboot Master
+3. Suite commune (étapes 3 → 7)
+```
+
+> Le Slave doit se connecter au **hotspot du Master**.
+> Ce hotspot n'existe pas avant que le Master soit configuré et redémarré.
+> Configurer le Slave avant le Master = impossible de le joindre en SSH.
+
+---
+
+## Prérequis matériel
+
+| Composant | Master (dôme) | Slave (corps) |
+|-----------|--------------|---------------|
+| Pi 4B | 4G | 2G |
+| OS | Raspberry Pi OS Lite 64-bit Bookworm | idem |
+| WiFi | wlan0 intégré + **clé USB WiFi** (wlan1) | wlan0 intégré suffit |
+| Réseau initial | connecté à ton WiFi maison | connecté à ton WiFi maison |
+
+**Avant de commencer — graver les cartes SD avec Raspberry Pi Imager :**
+- Cliquer ⚙️ Options dans l'Imager pour les deux cartes :
+  - Username : `artoo`
+  - Password : (ton choix, même des deux côtés recommandé)
+  - WiFi : ton réseau maison (SSID + mot de passe)
+  - SSH : activé
+  - Hostname Master : `r2-master`
+  - Hostname Slave  : `r2-slave`
 
 ---
 
@@ -24,9 +47,20 @@
 
 ```
 ─── PHASE 1 ────────────────────────────────────────────────
-ÉTAPE 1 — Préparation des deux Pi (OS, paquets, repo)
-ÉTAPE 2 — Pi 4B : hotspot wlan0 + wlan1 internet
-ÉTAPE 3 — R2-Master → R2-Slave : SSH sans mot de passe
+── Sur le R2-Master (PREMIER) ──
+ÉTAPE 0 — local.cfg (GitHub, hotspot souhaité)
+ÉTAPE 1 — Paquets + repo git
+ÉTAPE 2 — Réseau Master : hotspot wlan0 + wlan1 internet
+           → noter le SSID/password du hotspot créé
+           → sudo reboot
+
+── Sur le R2-Slave (après reboot Master) ──
+ÉTAPE 1b — Paquets sur Slave
+ÉTAPE 2b — Réseau Slave : connecter wlan0 au hotspot Master
+            → sudo reboot
+
+── Suite commune ──
+ÉTAPE 3 — SSH sans mot de passe Master → Slave
 ÉTAPE 4 — Déploiement du code (rsync initial)
 ÉTAPE 5 — Services systemd
 ÉTAPE 6 — RP2040 firmware
@@ -252,30 +286,94 @@ cat /home/artoo/r2d2/master/config/local.cfg
 
 ---
 
-## ÉTAPE 3 — SSH sans mot de passe R2-Master → R2-Slave
+## ÉTAPE 1b — Préparation du R2-Slave (paquets de base)
 
-Le R2-Slave doit être connecté au hotspot `R2D2_Control` (il obtiendra l'IP `192.168.4.2`).
-
-### 3.1 — Configurer wpa_supplicant sur le R2-Slave
+> Le Slave est encore sur ton WiFi maison à ce stade — c'est normal.
+> Son réseau sera basculé vers le hotspot Master à l'étape 2b.
 
 ```bash
-# Sur R2-Slave (depuis ton PC via SSH réseau domestique, avant reboot hotspot)
-sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
+# Connexion SSH (WiFi maison, pendant que le Slave est encore dessus)
+ssh artoo@r2-slave.local
+
+# Mise à jour système
+sudo apt-get update && sudo apt-get upgrade -y
+
+# Paquets système
+sudo apt-get install -y python3-pip python3-serial git alsa-utils
+
+# Activer UART hardware (désactiver console série)
+sudo raspi-config nonint do_serial_hw 0
+sudo raspi-config nonint do_serial_cons 1
+
+# Activer I2C
+sudo raspi-config nonint do_i2c 0
+
+# Créer le dossier du repo (sera rempli par rsync depuis le Master)
+mkdir -p /home/artoo/r2d2
+
+# Pas de reboot ici — attendre l'étape 2b
 ```
-Ajouter le réseau R2D2_Control :
+
+---
+
+## ÉTAPE 2b — Réseau Slave : connexion au hotspot Master
+
+> ⚠️ Le Master doit être **rebooté et son hotspot actif** avant de continuer.
+> Connecter ton PC au hotspot `R2D2_Control` pour vérifier qu'il répond :
+> ```bash
+> ping 192.168.4.1   # doit répondre
+> ```
+
+### 2b.1 — Copier le script sur le Slave
+
+Le repo n'est pas encore sur le Slave — copier le script depuis le Master :
+
+```bash
+# Depuis le Master (sur ton WiFi maison ou via hotspot)
+scp /home/artoo/r2d2/scripts/setup_slave_network.sh \
+    artoo@r2-slave.local:/home/artoo/setup_slave_network.sh
 ```
-network={
-    ssid="R2D2_Control"
-    psk="r2d2droid"
-    priority=10
-}
+
+> Si tu n'as pas encore accès SSH au Slave depuis le Master, copier
+> le script directement depuis ton PC (qui est encore sur le WiFi maison).
+
+### 2b.2 — Lancer le script sur le Slave
+
+```bash
+# Sur le R2-Slave (SSH via WiFi maison — dernière fois)
+ssh artoo@r2-slave.local
+
+sudo bash /home/artoo/setup_slave_network.sh
 ```
+
+Le script demande :
+- **SSID du hotspot Master** (défaut: `R2D2_Control` — modifier si tu l'as personnalisé)
+- **Mot de passe** du hotspot (celui que tu as défini lors du setup Master)
+
 ```bash
 sudo reboot
-# Le R2-Slave doit maintenant obtenir 192.168.4.2 via le hotspot
 ```
 
-### 3.2 — Générer et copier les clés SSH
+### 2b.3 — Vérification après reboot du Slave
+
+```bash
+# Depuis ton PC connecté au hotspot R2D2_Control (ou depuis le Master)
+ping r2-slave.local         # doit répondre depuis le hotspot ✓
+ssh artoo@r2-slave.local    # connexion sans problème ✓
+
+# Sur le Slave — vérifier l'IP reçue
+ip addr show wlan0
+# doit afficher 192.168.4.x
+```
+
+---
+
+## ÉTAPE 3 — SSH sans mot de passe R2-Master → R2-Slave
+
+> Les deux Pi sont maintenant sur le même réseau (hotspot `R2D2_Control`).
+> Le Slave répond à `r2-slave.local` depuis le Master.
+
+### 3.1 — Générer et copier les clés SSH
 
 ```bash
 # Depuis le R2-Master
