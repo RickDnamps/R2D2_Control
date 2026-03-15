@@ -59,36 +59,43 @@ TYPE:VALEUR:CRC\n      # message avec checksum (XOR des bytes)
 
 ### Types de messages définis
 ```python
-# Mouvement (Master → Slave)
-"M:50\n"              # Vitesse moteurs (duty -100 à +100)
-"M:LEFT:50:RIGHT:30\n" # Vitesse différentielle gauche/droite
+# Heartbeat (Master → Slave, toutes les 200ms)
+"H:1:CRC\n"           # Master envoie
+"H:OK:CRC\n"          # Slave ACK immédiat
+
+# Mouvement propulsion (Master → Slave)
+"M:LEFT,RIGHT:CRC\n"  # float [-1.0…+1.0], ex: "M:0.500,0.500:CRC\n"
+"M:0.000,0.000:CRC\n" # arrêt
 
 # Moteur dôme DC (Master → Slave)
-"D:50\n"              # Rotation dôme (duty -100 à +100)
-"D:0\n"               # Stop dôme
+"D:SPEED:CRC\n"       # float [-1.0…+1.0], ex: "D:0.300:CRC\n"
+"D:0.000:CRC\n"       # arrêt dôme
 
 # Servos body (Master → Slave)
-"SRV:door_left:1.0:0.5\n"  # nom:position(0-1):durée(s)
+"SRV:NAME,POS,DUR:CRC\n"  # ex: "SRV:utility_arm_left,1.000,500:CRC\n"
+                           # POS = float [0.0…1.0], DUR = int ms
 
 # Audio (Master → Slave)
-"S:01\n"              # Jouer son numéro 01
-
-# Heartbeat (Master → Slave, toutes les 200ms)
-"H:1\n"
+"S:FILENAME:CRC\n"         # ex: "S:Happy001:CRC\n"
+"S:RANDOM:CATEGORY:CRC\n"  # ex: "S:RANDOM:happy:CRC\n"
+"S:STOP:CRC\n"             # arrêt audio
 
 # Version sync (bidirectionnel)
-"V:?\n"               # Slave demande version au Master
-"V:abc123\n"          # Réponse avec hash git
+"V:?:CRC\n"           # Slave demande version au Master
+"V:abc123:CRC\n"      # Réponse Master avec hash git
 
-# Telemetry (Slave → Master, toutes les 1s)
-"T:VOLT:48.2:TEMP:32:RPM:150\n"
+# Telemetry (Slave → Master, futur)
+"T:VOLT:48.2:TEMP:32:CRC\n"
 
-# Status display (Master → Slave pour RP2040)
-"DISP:BOOT\n"
-"DISP:SYNCING:abc123\n"
-"DISP:OK:abc123\n"
-"DISP:ERROR:MASTER_OFFLINE\n"
-"DISP:TELEM:48.2V:32C\n"
+# Status display RP2040 (Master → Slave → RP2040)
+"DISP:BOOT:CRC\n"
+"DISP:SYNCING:abc123:CRC\n"
+"DISP:OK:abc123:CRC\n"
+"DISP:ERROR:MASTER_OFFLINE:CRC\n"
+"DISP:TELEM:48.2V:32C:CRC\n"
+
+# Reboot Slave (Master → Slave)
+"REBOOT:1:CRC\n"
 ```
 
 ### Watchdog Slave (CRITIQUE — sécurité)
@@ -98,54 +105,69 @@ TYPE:VALEUR:CRC\n      # message avec checksum (XOR des bytes)
 
 ---
 
-## 🌐 API REST Flask (sur Master Pi 4B)
+## 🌐 API REST Flask (sur Master Pi 4B) — Phase 4
 Inspirée de r2_control par dpoulson. Port **5000**.
-Structure modulaire via **Flask Blueprints**.
+Structure modulaire via **Flask Blueprints** dans `master/api/`.
+Injection de dépendances via `master/registry.py`.
 
-### Endpoints core
+### Blueprints disponibles
+| Fichier | Prefix | Description |
+|---------|--------|-------------|
+| `audio_bp.py`  | `/audio`   | Proxy audio → Slave via UART |
+| `motion_bp.py` | `/motion`  | Propulsion + dôme |
+| `servo_bp.py`  | `/servo`   | Servos body |
+| `script_bp.py` | `/scripts` | Séquences .scr |
+| `teeces_bp.py` | `/teeces`  | LEDs Teeces32 (local Master) |
+| `status_bp.py` | —          | État système + commandes système |
+
+### Endpoints
 ```
-GET  /                          → liste des endpoints
-GET  /status                    → état complet du système
-GET  /shutdown/now              → arrêt propre
+GET  /status                    → état complet JSON (heartbeat, version, uptime, drivers)
+GET  /audio/categories          → liste catégories + nb sons
+POST /audio/play                {"sound": "Happy001"}
+POST /audio/random              {"category": "happy"}
+POST /audio/stop
 
-GET  /servo/<part>/<name>/<pos>/<duration>
-                                → part = body|dome
-                                → pos = 0.0 à 1.0
-                                → duration = secondes
+POST /motion/drive              {"left": 0.5, "right": 0.5}
+POST /motion/arcade             {"throttle": 0.5, "steering": 0.0}
+POST /motion/stop
+GET  /motion/state
+POST /motion/dome/turn          {"speed": 0.3}
+POST /motion/dome/stop
+POST /motion/dome/random        {"enabled": true}
 
-GET  /servo/<part>/list         → liste servos configurés
-GET  /servo/close               → fermer tous les servos
-GET  /servo/open                → ouvrir tous les servos
+POST /servo/move                {"name": "utility_arm_left", "position": 1.0, "duration": 500}
+POST /servo/open                {"name": "utility_arm_left"}
+POST /servo/close               {"name": "utility_arm_left"}
+POST /servo/open_all
+POST /servo/close_all
+GET  /servo/list
+GET  /servo/state
 
-GET  /drive/<left>/<right>      → commande différentielle (-100 à +100)
-GET  /drive/stop                → arrêt immédiat
+POST /scripts/run               {"name": "patrol", "loop": false}
+POST /scripts/stop              {"id": 3}
+POST /scripts/stop_all
+GET  /scripts/list
+GET  /scripts/running
 
-GET  /dome/<speed>              → rotation dôme (-100 à +100)
-GET  /dome/stop                 → stop dôme
+POST /teeces/random
+POST /teeces/leia
+POST /teeces/off
+POST /teeces/text               {"text": "HELLO"}
+POST /teeces/psi                {"mode": 1}
 
-GET  /audio/<sound_id>          → jouer son (ex: /audio/01)
-GET  /audio/list                → liste des sons disponibles
-
-GET  /teeces/<command>          → commande JawaLite directe
-                                → ex: /teeces/0T1 (random)
-                                → ex: /teeces/0T20 (off)
-
-GET  /display/<state>           → état RP2040 (BOOT|SYNCING|OK|ERROR)
-
-GET  /telemetry                 → voltage, temp, RPM depuis VESC
+POST /system/reboot             → reboot Master
+POST /system/reboot_slave       → envoie REBOOT: via UART
+POST /system/shutdown
 ```
 
-### Socket.io events (temps réel)
-```javascript
-// Serveur → Client
-emit('telemetry', {voltage: 48.2, temp: 32, rpm: 150})
-emit('status', {master: 'ok', slave: 'ok', version: 'abc123'})
-emit('alert', {level: 'error', msg: 'MASTER_OFFLINE'})
-
-// Client → Serveur
-on('drive', {left: 50, right: 50})
-on('dome', {speed: 30})
-```
+### Dashboard Web
+- URL : `http://192.168.4.1:5000` ou `http://r2-master.local:5000`
+- Templates : `master/templates/index.html`
+- CSS/JS : `master/static/css/style.css`, `master/static/js/app.js`
+- Thème dark bleu R2-D2, responsive, compatible mobile
+- Contrôles clavier WASD/flèches pour la propulsion
+- Polling status toutes les 2s (pas de Socket.io — REST pur)
 
 ---
 
@@ -205,7 +227,7 @@ git rev-parse --short HEAD > /home/artoo/r2d2/VERSION
 
 ---
 
-## 🎵 Audio
+## 🎵 Audio & Teeces
 
 ### Teeces32 — Alertes visuelles sur logics dôme
 ```python
@@ -213,16 +235,38 @@ git rev-parse --short HEAD > /home/artoo/r2d2/VERSION
 "0T1\r"              # Animations aléatoires (mode normal)
 "0T20\r"             # Tout éteint
 "0T6\r"              # Mode Leia
-"1MALERTE MASTER\r"  # Texte défilant sur FLD
-"1MERREUR CODE\r"    # Affichage erreur
+"1MALERTE MASTER\r"  # Texte défilant sur FLD (max ~20 chars)
 "4S1\r"              # PSI random
 ```
 
-### Sons Mr Baddeley
-- Stockés sur SD R2-Slave : `/home/artoo/r2d2/slave/sounds/`
-- Format : WAV ou MP3 numérotés `001.wav`, `002.wav`...
+### Sons R2-D2 (issus de r2_control by dpoulson)
+- **306 sons MP3** stockés sur R2-Slave : `/home/artoo/r2d2/slave/sounds/`
+- **Index** : `slave/sounds/sounds_index.json` — 13 catégories
 - Lecture : `aplay` via subprocess (jack 3.5mm natif Pi 4B)
-- Déclenchement : commande UART `S:01\n` depuis Master
+- Driver : `slave/drivers/audio_driver.py`
+
+| Catégorie | Nb sons | Prefix fichier |
+|-----------|---------|----------------|
+| alarm     | 11 | `ALARM` |
+| happy     | 20 | `Happy` |
+| hum       | 25 | `HUM__` |
+| misc      | 36 | `MISC_` |
+| proc      | 15 | `PROC_` |
+| quote     | 47 | `Quote` |
+| razz      | 23 | `RAZZ_` |
+| sad       | 20 | `Sad__` |
+| sent      | 20 | `SENT_` |
+| ooh       | 7  | `OOH__` |
+| whistle   | 25 | `WHIST` |
+| scream    | 4  | `SCREA` |
+| special   | 53 | (noms uniques) |
+
+Commandes UART audio :
+```
+S:Happy001:CRC        → joue le fichier spécifique
+S:RANDOM:happy:CRC    → son aléatoire de la catégorie
+S:STOP:CRC            → coupe le son en cours
+```
 
 ---
 
@@ -231,44 +275,73 @@ git rev-parse --short HEAD > /home/artoo/r2d2/VERSION
 ```
 r2d2/
 ├── CLAUDE.md                    ← CE FICHIER (contexte Claude Code)
+├── HOWTO.md                     ← Guide installation phases 1-4
 ├── VERSION                      ← git hash courant
+├── shared/
+│   ├── uart_protocol.py         ← CRC XOR, build_msg, parse_msg
+│   └── base_driver.py           ← interface BaseDriver
 ├── master/
-│   ├── main.py                  ← point d'entrée Master
-│   ├── uart_controller.py       ← gestion UART + heartbeat
-│   ├── teeces_controller.py     ← commandes JawaLite
-│   ├── deploy_controller.py     ← git pull + rsync + bouton
-│   ├── api/
-│   │   ├── __init__.py          ← Flask app factory
-│   │   ├── core.py              ← endpoints core + Socket.io
-│   │   ├── servo_bp.py          ← Blueprint servos
-│   │   ├── drive_bp.py          ← Blueprint propulsion
-│   │   ├── audio_bp.py          ← Blueprint audio
-│   │   └── teeces_bp.py         ← Blueprint Teeces32
+│   ├── main.py                  ← boot + blocs Phase 2/3/4 commentés
+│   ├── uart_controller.py       ← heartbeat 200ms + read loop + CRC
+│   ├── teeces_controller.py     ← JawaLite (random/leia/off/text/psi)
+│   ├── deploy_controller.py     ← git pull + rsync + bouton dôme
+│   ├── registry.py              ← injection de dépendances Flask ← Phase 4
+│   ├── flask_app.py             ← app factory Flask               ← Phase 4
+│   ├── script_engine.py         ← exécuteur de scripts .scr       ← Phase 3
+│   ├── drivers/                                                    ← Phase 2
+│   │   ├── vesc_driver.py       ← envoie M: via UART
+│   │   ├── dome_motor_driver.py ← envoie D: via UART + mode random
+│   │   └── body_servo_driver.py ← envoie SRV: via UART
+│   ├── api/                                                        ← Phase 4
+│   │   ├── audio_bp.py          ← POST /audio/play|random|stop
+│   │   ├── motion_bp.py         ← POST /motion/drive|arcade|dome/*
+│   │   ├── servo_bp.py          ← POST /servo/move|open|close
+│   │   ├── script_bp.py         ← POST /scripts/run|stop
+│   │   ├── teeces_bp.py         ← POST /teeces/random|leia|text
+│   │   └── status_bp.py         ← GET /status + POST /system/*
+│   ├── scripts/                                                    ← Phase 3
+│   │   ├── patrol.scr           ← patrouille
+│   │   ├── celebrate.scr        ← célébration
+│   │   ├── cantina.scr          ← danse de la cantina
+│   │   └── leia.scr             ← message holographique Leia
+│   ├── templates/
+│   │   └── index.html           ← dashboard web dark theme         ← Phase 4
+│   ├── static/
+│   │   ├── css/style.css        ← thème dark bleu R2-D2            ← Phase 4
+│   │   └── js/app.js            ← contrôles + polling REST 2s      ← Phase 4
 │   ├── config/
 │   │   ├── main.cfg             ← config principale
-│   │   └── servo_list.cfg       ← définition des servos
+│   │   ├── local.cfg.example    ← template config personnelle
+│   │   └── config_loader.py     ← charge main.cfg + overlay local.cfg
 │   └── services/
 │       ├── r2d2-master.service  ← systemd
 │       └── r2d2-monitor.service ← watchdog systemd
 ├── slave/
-│   ├── main.py                  ← point d'entrée Slave
-│   ├── uart_listener.py         ← écoute UART + dispatcher
-│   ├── watchdog.py              ← coupe VESC si heartbeat perdu
-│   ├── version_check.py         ← validation version au boot
+│   ├── main.py                  ← boot + blocs Phase 2 commentés
+│   ├── uart_listener.py         ← parse CRC + dispatcher callbacks
+│   ├── watchdog.py              ← coupe VESC si heartbeat >500ms
+│   ├── version_check.py         ← V:? → compare → rsync si mismatch
 │   ├── drivers/
-│   │   ├── vesc_driver.py       ← PyVESC wrapper
-│   │   ├── motor_driver.py      ← Motor Driver HAT (I2C 0x40)
-│   │   ├── servo_driver.py      ← PCA9685 body (I2C 0x41)
-│   │   ├── audio_driver.py      ← MAX98357A via aplay
-│   │   └── display_driver.py    ← RP2040 via USB serial
+│   │   ├── audio_driver.py      ← aplay MP3 + sounds_index.json   ← Phase 1
+│   │   ├── display_driver.py    ← RP2040 via /dev/ttyACM2          ← Phase 1
+│   │   ├── vesc_driver.py       ← pyvesc VESC propulsion           ← Phase 2
+│   │   └── body_servo_driver.py ← PCA9685 I2C servos body          ← Phase 2
+│   ├── sounds/
+│   │   ├── sounds_index.json    ← 13 catégories, 306 sons
+│   │   └── *.mp3                ← fichiers audio (gitignored)
 │   └── services/
 │       ├── r2d2-slave.service   ← systemd
 │       └── r2d2-version.service ← validation version au boot
-└── rp2040/
-    └── firmware/
-        ├── main.py              ← MicroPython firmware
-        ├── display.py           ← rendu GC9A01
-        └── touch.py             ← CST816S touch handler
+├── rp2040/
+│   └── firmware/
+│       ├── main.py              ← MicroPython firmware
+│       ├── display.py           ← rendu GC9A01
+│       └── touch.py             ← CST816S touch handler
+└── scripts/
+    ├── deploy.sh                ← rsync Slave + install vendor + reboot
+    ├── setup_hotspot.sh         ← hostapd + dnsmasq hotspot wlan0
+    ├── setup_ssh_keys.sh        ← génère + copie clés Ed25519
+    └── vendor_deps.sh           ← pip download → slave/vendor/
 ```
 
 ---
@@ -526,21 +599,21 @@ BUTTON_PIN = XX  # BCM à définir
 
 ### Master (Pi 4B)
 ```
-flask
-flask-socketio
+flask             # API REST + dashboard web (Phase 4)
+flask-socketio    # (prévu — non utilisé Phase 4 actuelle, REST polling)
 pyserial          # UART + Teeces32 USB
 RPi.GPIO          # bouton dôme
-adafruit-pca9685  # Servo Driver HAT
+adafruit-pca9685  # Servo Driver HAT dôme (Phase 2)
 paramiko          # SSH pour rsync
 ```
 
 ### Slave (Pi 4B 2G corps)
 ```
 pyserial          # UART Master + VESC USB + RP2040 USB
-pyvesc            # contrôle VESC
-adafruit-pca9685  # PCA9685 body (I2C 0x41)
+pyvesc            # contrôle VESC (Phase 2)
+adafruit-pca9685  # PCA9685 body (I2C 0x41) (Phase 2)
 RPi.GPIO          # GPIO général
-# Pas de lib audio nécessaire — jack 3.5mm natif, aplay out of the box
+# Audio : aplay out of the box — jack 3.5mm natif Pi 4B, pas de lib supplémentaire
 ```
 
 ---
@@ -593,34 +666,39 @@ TX d'un côté = toujours sur RX de l'autre. Règle physique universelle.
 
 ## 🚀 Ordre de développement (Phases)
 
-### Phase 1 — Infrastructure (PRIORITÉ) ✅ Planifié
-- [ ] **1.1** Hotspot Wi-Fi Pi 4B (`wlan0`) + clé USB internet (`wlan1`)
-- [ ] **1.2** SSH sans mot de passe R2-Master → R2-Slave
-- [ ] **1.3** UART + Heartbeat + **Watchdog** (critique sécurité)
-- [ ] **1.4** Validation version au boot + rsync auto-guérissant
-- [ ] **1.5** Bouton dôme (update/rollback)
-- [ ] **1.6** Écran RP2040 boot/sync/erreur
-- [ ] **1.7** Teeces32 alertes JawaLite
+### Phase 1 — Infrastructure ✅ Code complet
+- [x] **1.1** Hotspot Wi-Fi Pi 4B (`wlan0`) + clé USB internet (`wlan1`)
+- [x] **1.2** SSH sans mot de passe R2-Master → R2-Slave
+- [x] **1.3** UART + Heartbeat 200ms + **Watchdog 500ms** (critique sécurité)
+- [x] **1.4** Validation version au boot + rsync auto-guérissant
+- [x] **1.5** Bouton dôme (update/rollback/double-appui)
+- [x] **1.6** Écran RP2040 boot/sync/erreur/telemetry
+- [x] **1.7** Teeces32 JawaLite (random/leia/off/text/psi)
+- [x] **1.8** Audio 306 sons MP3 par catégorie (aplay jack 3.5mm)
+- [ ] Validation sur hardware réel (UART slipring physique)
 
-### Phase 2 — Propulsion
-- [ ] **2.1** Driver VESC (PyVESC) + télémétrie
-- [ ] **2.2** Rampes accélération/freinage
-- [ ] **2.3** Contrôle différentiel
+### Phase 2 — Propulsion & Actionneurs 🔧 Code prêt — décommenter
+- [ ] **2.1** Brancher VESC USB `/dev/ttyACM0/1` → décommenter dans `slave/main.py`
+- [ ] **2.2** Brancher Syren10 dôme → décommenter `DomeMotorDriver` dans `master/main.py`
+- [ ] **2.3** Brancher PCA9685 body → décommenter `BodyServoDriver` dans les deux main.py
+- [ ] **2.4** Calibrer canaux servo dans `slave/drivers/body_servo_driver.py` → `SERVO_MAP`
+- [ ] **2.5** Tester watchdog VESC (arrêt si heartbeat perdu — critique sécurité)
 
-### Phase 3 — Personnalité
-- [ ] **3.1** Audio Mr Baddeley (jack 3.5mm natif Pi 4B + aplay)
-- [ ] **3.2** Contrôle servos dôme (PCA9685 R2-Master)
-- [ ] **3.3** Contrôle servos body (PCA9685 R2-Slave)
-- [ ] **3.4** Moteur DC dôme (Motor Driver HAT R2-Slave)
+### Phase 3 — Scripts de séquence 🔧 Code prêt — décommenter
+- [ ] **3.1** Décommenter `ScriptEngine` dans `master/main.py`
+- [ ] **3.2** Tester les 4 scripts inclus (patrol, celebrate, cantina, leia)
+- [ ] **3.3** Créer des scripts personnalisés dans `master/scripts/`
 
-### Phase 4 — Interface
-- [ ] **4.1** API REST Flask + Socket.io (inspiré r2_control)
-- [ ] **4.2** Dashboard web (joysticks, soundboard, telemetry)
-- [ ] **4.3** App Android UDP (deux joysticks style mobile)
+### Phase 4 — API REST + Dashboard Web 🔧 Code prêt — décommenter
+- [ ] **4.1** Décommenter Flask dans `master/main.py` → `create_app()` + thread
+- [ ] **4.2** Ajouter `flask_port = 5000` dans `master/config/main.cfg`
+- [ ] **4.3** Tester dashboard sur `http://r2-master.local:5000`
+- [ ] **4.4** Tester contrôle WASD depuis navigateur mobile (hotspot)
+- [ ] **4.5** App Android (Phase 4+ — UDP joystick ou WebView dashboard)
 
-### Phase 5 — Vision
-- [ ] **5.1** Caméra USB + flux vidéo
-- [ ] **5.2** Suivi de personne (OpenCV/TF Lite)
+### Phase 5 — Vision (futur)
+- [ ] **5.1** Caméra USB + flux vidéo MJPEG
+- [ ] **5.2** Suivi de personne (OpenCV / TF Lite)
 
 ---
 
@@ -695,59 +773,28 @@ Le code source complet de r2_control est disponible localement :
 J:\R2-D2_Build\software\others\r2_control-master\
 ```
 
-### Instructions pour Claude Code
-1. **Lire et analyser** ce code avant de coder les modules équivalents
-2. **S'inspirer** de la structure, pas copier — notre architecture est différente
-3. **Modules particulièrement intéressants à étudier :**
-   ```
-   r2_control-master/
-   ├── r2_control.py        ← structure principale, app factory Flask
-   ├── modules/
-   │   ├── audio.py         ← gestion audio, commandes son
-   │   ├── servo.py         ← contrôle servos PCA9685
-   │   └── scripts.py       ← système de scripts/séquences
-   ├── controllers/
-   │   └── web.py           ← interface web Flask, Blueprint
-   └── configs/             ← structure des fichiers .cfg
-   ```
+### Ce qu'on a repris de r2_control
+| Élément | Fichier r2_control | Notre équivalent |
+|---------|-------------------|-----------------|
+| 306 sons MP3 catégorisés | `Hardware/Audio/sounds/` | `slave/sounds/*.mp3` + `sounds_index.json` |
+| Structure Blueprint Flask | `Hardware/Audio/AudioLibrary.py` | `master/api/*_bp.py` |
+| Système de scripts .scr CSV | `Hardware/Scripts/ScriptThread.py` | `master/script_engine.py` |
+| Catégories audio | `_Random_Sounds` list | `sounds_index.json` catégories |
 
-4. **Ce qu'on garde de r2_control :**
-   - Structure Blueprint Flask pour l'API REST
-   - Système de config `.cfg` pour servos et hardware
-   - Pattern audio avec liste de sons numérotés
-   - Concept de "scripts" pour séquences d'actions
+### Ce qu'on adapte / remplace
+- **Pas pygame** → `aplay` subprocess (Pi 4B jack 3.5mm natif)
+- **Pas I2C depuis Master** → tout hardware body passe par UART → Slave
+- **Pas contrôleur PS3/Xbox** → dashboard web WASD + API REST
+- **Pas Flask URL-only** → POST JSON propre avec vrais codes HTTP
+- **Watchdog UART** remplace la simple gestion d'erreurs de r2_control
+- **Architecture Master/Slave** vs monolithique dans r2_control
 
-5. **Ce qu'on adapte / remplace :**
-   - Pas de I2C direct depuis le Master → tout passe par UART vers R2-Slave
-   - Pas de contrôleur PS3/Wii → joysticks Android UDP + web
-   - Pas de périscope ni smoke machine
-   - Watchdog UART remplace la gestion simple des erreurs
-
-### Sons Mr Baddeley
-Les sons sont aussi dans le répertoire r2_control :
-```
-J:\R2-D2_Build\software\others\r2_control-master\sounds\
-```
-**Instructions :**
-- Copier tous les fichiers audio vers `/home/artoo/r2d2/slave/sounds/`
-- Conserver la numérotation existante si possible
-- Générer un fichier `sounds_index.json` avec la liste complète
-- Une fois importés et validés → le répertoire `r2_control-master` peut être supprimé
-
-```python
-# Format de l'index des sons
-{
-    "01": {"file": "001.wav", "description": "Beep court"},
-    "02": {"file": "002.wav", "description": "Excitation"},
-    ...
-}
-```
-
-- Le **Watchdog est non-négociable** — toujours tester en premier
+### Notes importantes
+- Le **Watchdog est non-négociable** — toujours tester en premier sur hardware réel
 - Le **slipring limite les fils** — ne jamais ajouter un signal sans valider le budget fils
 - Le **RP2040 est autonome** — son firmware change rarement, ne pas l'inclure dans le pipeline rsync
 - **Mode dégradé** = Slave démarre avec version locale si Master injoignable + alerte RP2040 + alerte Teeces32
 - **Teeces32** = protocole JawaLite, compatible ESP32, USB `/dev/ttyUSB0` sur Pi 4B
-- **FSESC Mini 6.7 PRO** = 4-13S LiPo, utiliser PyVESC avec commandes SET_DUTY ou SET_RPM
+- **FSESC Mini 6.7 PRO** = 4-13S LiPo, utiliser PyVESC avec commandes `SetDutyCycle`
 - **Hub Motors 250W/24V double shaft** — prévoir rampes douces (risque basculement)
-- **r2_control inspiration** : structure Blueprint Flask, config `.cfg`, API REST propre
+- **Phase 2/3/4** = code déjà écrit, décommenter les blocs dans `master/main.py` + `slave/main.py`
