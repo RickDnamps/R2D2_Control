@@ -1,6 +1,11 @@
 # R2-D2 — Guide d'installation complet
 
-> Phase 1 : Infrastructure UART / Heartbeat / Watchdog / Version / Hotspot
+| Phase | Contenu | État |
+|-------|---------|------|
+| **1** | Infrastructure UART / Heartbeat / Watchdog / Version / Hotspot | ✅ Prêt |
+| **2** | Propulsion VESC / Moteur dôme / Servos body | 🔧 Décommenter |
+| **3** | Scripts de séquence comportementale (.scr) | 🔧 Décommenter |
+| **4** | API REST Flask + Dashboard Web | 🔧 Décommenter |
 
 ---
 
@@ -18,6 +23,7 @@
 ## Vue d'ensemble
 
 ```
+─── PHASE 1 ────────────────────────────────────────────────
 ÉTAPE 1 — Préparation des deux Pi (OS, paquets, repo)
 ÉTAPE 2 — Pi 4B : hotspot wlan0 + wlan1 internet
 ÉTAPE 3 — R2-Master → R2-Slave : SSH sans mot de passe
@@ -25,6 +31,21 @@
 ÉTAPE 5 — Services systemd
 ÉTAPE 6 — RP2040 firmware
 ÉTAPE 7 — Tests de validation Phase 1
+
+─── PHASE 2 ────────────────────────────────────────────────
+ÉTAPE 8 — Câblage VESC (propulsion)
+ÉTAPE 9 — Câblage moteur dôme (Syren10/Sabertooth)
+ÉTAPE 10 — Câblage servos body (PCA9685 I2C)
+ÉTAPE 11 — Activation des drivers Phase 2
+
+─── PHASE 3 ────────────────────────────────────────────────
+ÉTAPE 12 — Scripts de séquence (.scr)
+ÉTAPE 13 — Activation du ScriptEngine
+
+─── PHASE 4 ────────────────────────────────────────────────
+ÉTAPE 14 — API REST Flask
+ÉTAPE 15 — Dashboard Web
+ÉTAPE 16 — Tests de validation Phase 4
 ```
 
 ---
@@ -484,6 +505,404 @@ R2-Master  GND   (pin 6)      ───  GND   (pin 6)        R2-Slave
 
 > **Les fils UART traversent le slipring.** Vérifier la continuité au multimètre avant de démarrer les services.
 > R2-Master et R2-Slave utilisent `/dev/ttyAMA0` — même port, chacun sur son propre hardware.
+
+---
+
+## ÉTAPE 8 — Câblage VESC (Phase 2)
+
+### 8.1 — Connexion USB
+
+Les deux VESC se branchent directement sur le R2-Slave (Pi 4B) via USB :
+
+```
+R2-Slave  USB  ──→  VESC Gauche  (/dev/ttyACM0)
+R2-Slave  USB  ──→  VESC Droit   (/dev/ttyACM1)
+```
+
+Vérifier les ports après branchement :
+```bash
+ls /dev/ttyACM*
+# Doit afficher: /dev/ttyACM0  /dev/ttyACM1
+```
+
+### 8.2 — Configuration VESC (via VESC Tool)
+
+Sur chaque VESC, configurer via VESC Tool (depuis un PC) :
+- **Motor Type** : FOC ou BLDC selon ton moteur
+- **Current Limits** : adapter à ton moteur (ex: 30A max)
+- **Direction** : inverser le VESC droit si les roues tournent en sens opposé
+- **UART Baud** : 115200
+
+### 8.3 — Permissions USB sur le Slave
+
+```bash
+sudo usermod -a -G dialout artoo
+# Déconnexion/reconnexion SSH requise pour prendre effet
+```
+
+---
+
+## ÉTAPE 9 — Câblage moteur dôme (Phase 2)
+
+### 9.1 — Connexion Syren10 / Sabertooth
+
+Le contrôleur de dôme reçoit les commandes du R2-Slave via UART :
+
+```
+R2-Slave  /dev/ttyUSB1  ──→  Syren10 S1
+R2-Slave  GND           ───  Syren10 0V
+```
+
+> Si `/dev/ttyUSB1` n'est pas disponible (conflits avec Teeces), adapter dans `slave/main.py`.
+
+### 9.2 — Configuration Syren10
+
+Interrupteurs DIP Syren10 pour mode UART simplex :
+- SW1=OFF, SW2=OFF, SW3=ON, SW4=OFF, SW5=ON, SW6=ON (adresse 129)
+
+Vérification :
+```bash
+# Envoyer une commande manuelle (vitesse 0 = arrêt)
+python3 -c "
+import serial, time
+s = serial.Serial('/dev/ttyUSB1', 9600)
+s.write(bytes([0x80]))  # adresse 129 → neutre
+time.sleep(0.5)
+s.close()
+"
+```
+
+---
+
+## ÉTAPE 10 — Câblage servos body (Phase 2)
+
+### 10.1 — Connexion PCA9685 I2C
+
+```
+R2-Slave  GPIO2 (SDA, pin 3)  ──→  PCA9685 SDA
+R2-Slave  GPIO3 (SCL, pin 5)  ──→  PCA9685 SCL
+R2-Slave  3.3V  (pin 1)       ──→  PCA9685 VCC
+R2-Slave  GND   (pin 6)       ──→  PCA9685 GND
+Alimentation externe 5-6V     ──→  PCA9685 V+ (pour les servos)
+```
+
+Vérifier la détection I2C :
+```bash
+sudo i2cdetect -y 1
+# Doit afficher "40" à l'adresse 0x40
+```
+
+### 10.2 — Mapping des canaux servo
+
+Éditer `slave/drivers/body_servo_driver.py` → dict `SERVO_MAP` :
+```python
+SERVO_MAP = {
+    'utility_arm_left':   (0, 1000, 2000),  # canal 0
+    'utility_arm_right':  (1, 1000, 2000),  # canal 1
+    'panel_front_top':    (2, 1000, 2000),  # canal 2
+    # ...
+}
+```
+
+Ajuster `pulse_min_us` / `pulse_max_us` selon chaque servo (tester à la main d'abord).
+
+---
+
+## ÉTAPE 11 — Activation des drivers Phase 2
+
+### 11.1 — Sur le R2-Slave
+
+Éditer `slave/main.py` et décommenter le bloc Phase 2 :
+```python
+# ---- Phase 2 — Décommenter pour activer ----
+from slave.drivers.vesc_driver       import VescDriver
+from slave.drivers.body_servo_driver import BodyServoDriver
+```
+
+Et plus bas dans `main()` :
+```python
+vesc  = VescDriver()
+servo = BodyServoDriver()
+if vesc.setup():
+    uart.register_callback('M', vesc.handle_uart)
+    watchdog.register_stop_callback(vesc.stop)
+if servo.setup():
+    uart.register_callback('SRV', servo.handle_uart)
+```
+
+### 11.2 — Sur le R2-Master
+
+Éditer `master/main.py` et décommenter le bloc Phase 2 :
+```python
+from master.drivers.vesc_driver       import VescDriver
+from master.drivers.dome_motor_driver import DomeMotorDriver
+from master.drivers.body_servo_driver import BodyServoDriver
+```
+
+Et dans `main()` :
+```python
+vesc  = VescDriver(uart)
+dome  = DomeMotorDriver(uart)
+servo = BodyServoDriver(uart)
+if vesc.setup():  reg.vesc  = vesc
+if dome.setup():  reg.dome  = dome
+if servo.setup(): reg.servo = servo
+```
+
+### 11.3 — Déployer et tester
+
+```bash
+# Depuis le R2-Master
+bash /home/artoo/r2d2/scripts/deploy.sh
+
+# Test propulsion manuel via Python
+python3 -c "
+import sys; sys.path.insert(0, '/home/artoo/r2d2')
+import configparser
+from master.config.config_loader import load
+from master.uart_controller import UARTController
+from master.drivers.vesc_driver import VescDriver
+cfg = load()
+uart = UARTController(cfg)
+uart.setup(); uart.start()
+vesc = VescDriver(uart)
+vesc.setup()
+import time
+vesc.drive(0.3, 0.3)   # avancer doucement
+time.sleep(1)
+vesc.stop()
+uart.stop()
+"
+```
+
+---
+
+## ÉTAPE 12 — Scripts de séquence (Phase 3)
+
+Les scripts `.scr` sont des fichiers CSV dans `master/scripts/`.
+Chaque ligne = une commande. Les commentaires commencent par `#`.
+
+### 12.1 — Format des commandes
+
+```csv
+# Exemples de commandes
+sound,Happy001               # joue un son spécifique
+sound,RANDOM,happy           # son aléatoire de la catégorie
+dome,turn,0.5                # rotation dôme (vitesse -1.0 à 1.0)
+dome,stop                    # arrêt dôme
+dome,random,on               # active rotation aléatoire
+servo,utility_arm_left,1.0,500   # servo: nom, position (0-1), durée ms
+servo,all,open               # ouvre tous les servos
+servo,all,close              # ferme tous les servos
+motion,0.4,0.4,2000          # propulsion: gauche, droite, durée ms
+motion,stop                  # arrêt propulsion
+teeces,random                # LEDs Teeces en mode aléatoire
+teeces,leia                  # LEDs Teeces en mode Leia
+teeces,text,HELLO            # texte sur le FLD
+sleep,1.5                    # pause 1.5 secondes
+sleep,random,2,5             # pause aléatoire 2 à 5 secondes
+```
+
+### 12.2 — Scripts inclus
+
+| Script | Description |
+|--------|-------------|
+| `patrol.scr` | Patrouille : sons + rotation dôme + bras utilitaire |
+| `celebrate.scr` | Célébration : bras + dôme + son Celebration |
+| `cantina.scr` | Danse de la cantina avec musique |
+| `leia.scr` | Mode Leia holographique (Teeces + son) |
+
+### 12.3 — Créer un nouveau script
+
+```bash
+nano /home/artoo/r2d2/master/scripts/mon_script.scr
+```
+
+```csv
+# Mon script personnalisé
+sound,RANDOM,happy
+sleep,1.0
+dome,turn,0.3
+sleep,2.0
+dome,stop
+teeces,random
+```
+
+---
+
+## ÉTAPE 13 — Activation du ScriptEngine (Phase 3)
+
+Éditer `master/main.py` et décommenter le bloc Phase 3 :
+```python
+from master.script_engine import ScriptEngine
+```
+
+Dans `main()` :
+```python
+engine = ScriptEngine(
+    uart=uart, teeces=teeces,
+    vesc=reg.vesc, dome=reg.dome, servo=reg.servo
+)
+reg.engine = engine
+```
+
+Test en ligne de commande :
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '/home/artoo/r2d2')
+from master.script_engine import ScriptEngine
+engine = ScriptEngine()   # sans drivers = mode dry-run
+sid = engine.run('patrol')
+import time; time.sleep(10)
+engine.stop(sid)
+"
+```
+
+---
+
+## ÉTAPE 14 — API REST Flask (Phase 4)
+
+### 14.1 — Activation
+
+Éditer `master/main.py` et décommenter le bloc Phase 4 :
+```python
+from master.flask_app import create_app
+```
+
+Dans `main()` :
+```python
+app = create_app()
+flask_port = cfg.getint('master', 'flask_port', fallback=5000)
+flask_thread = threading.Thread(
+    target=lambda: app.run(host='0.0.0.0', port=flask_port,
+                           use_reloader=False, threaded=True),
+    name='flask', daemon=True
+)
+flask_thread.start()
+```
+
+Ajouter dans `master/config/main.cfg` :
+```ini
+[master]
+flask_port = 5000
+```
+
+### 14.2 — Endpoints disponibles
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/status` | État complet JSON |
+| POST | `/audio/play` | Jouer un son `{"sound": "Happy001"}` |
+| POST | `/audio/random` | Son aléatoire `{"category": "happy"}` |
+| POST | `/audio/stop` | Arrêter le son |
+| GET | `/audio/categories` | Liste des catégories |
+| POST | `/motion/drive` | Propulsion `{"left": 0.5, "right": 0.5}` |
+| POST | `/motion/arcade` | Arcade drive `{"throttle": 0.5, "steering": 0.0}` |
+| POST | `/motion/stop` | Arrêt propulsion |
+| POST | `/motion/dome/turn` | Rotation dôme `{"speed": 0.3}` |
+| POST | `/motion/dome/random` | Mode aléatoire dôme `{"enabled": true}` |
+| POST | `/servo/move` | Déplacer servo `{"name": "...", "position": 0.5}` |
+| POST | `/servo/open_all` | Ouvrir tous les servos |
+| POST | `/servo/close_all` | Fermer tous les servos |
+| POST | `/scripts/run` | Lancer un script `{"name": "patrol", "loop": false}` |
+| POST | `/scripts/stop_all` | Arrêter tous les scripts |
+| POST | `/teeces/random` | Mode LEDs aléatoire |
+| POST | `/teeces/leia` | Mode Leia |
+| POST | `/teeces/text` | Texte FLD `{"text": "HELLO"}` |
+| POST | `/system/reboot` | Reboot Master |
+| POST | `/system/reboot_slave` | Reboot Slave via UART |
+
+### 14.3 — Tester l'API
+
+```bash
+# Depuis n'importe quel appareil connecté au hotspot R2D2_Control
+curl http://192.168.4.1:5000/status
+curl -X POST http://192.168.4.1:5000/audio/random \
+     -H "Content-Type: application/json" \
+     -d '{"category": "happy"}'
+curl -X POST http://192.168.4.1:5000/motion/drive \
+     -H "Content-Type: application/json" \
+     -d '{"left": 0.3, "right": 0.3}'
+```
+
+---
+
+## ÉTAPE 15 — Dashboard Web (Phase 4)
+
+### 15.1 — Accès
+
+Une fois Flask démarré, ouvrir dans un navigateur (depuis le hotspot R2D2_Control) :
+```
+http://192.168.4.1:5000
+# ou
+http://r2-master.local:5000
+```
+
+### 15.2 — Fonctionnalités du dashboard
+
+| Panneau | Contrôles |
+|---------|-----------|
+| **Status** | Heartbeat, UART, Teeces, VESC, uptime, version |
+| **Audio** | Boutons par catégorie (13 catégories, 306 sons), Stop |
+| **Propulsion** | D-pad (clic/touch), WASD/flèches clavier, limite vitesse |
+| **Dôme** | Gauche/Droite, Centre, Mode aléatoire toggle |
+| **Teeces** | Aléatoire / Leia / OFF / texte FLD |
+| **Servos** | Ouvrir/Fermer individuel + Tout ouvrir/fermer |
+| **Scripts** | Lancer (Run/Loop) + Stop all + liste en cours |
+| **Système** | Reboot Master, Reboot Slave, Shutdown |
+
+### 15.3 — Contrôle clavier (navigateur PC)
+
+| Touche | Action |
+|--------|--------|
+| `W` / `↑` | Avancer |
+| `S` / `↓` | Reculer |
+| `A` / `←` | Pivoter gauche |
+| `D` / `→` | Pivoter droite |
+| Relâcher | Arrêt automatique |
+
+---
+
+## ÉTAPE 16 — Tests de validation Phase 4
+
+### 16.1 — Test API status
+
+```bash
+curl http://r2-master.local:5000/status
+# Doit retourner un JSON avec heartbeat_ok, version, uptime, etc.
+```
+
+### 16.2 — Test audio via API
+
+```bash
+curl -X POST http://r2-master.local:5000/audio/random \
+     -H "Content-Type: application/json" \
+     -d '{"category": "happy"}'
+# Doit jouer un son sur le Slave et retourner {"status": "ok"}
+```
+
+### 16.3 — Test script via API
+
+```bash
+# Lancer le script celebrate
+curl -X POST http://r2-master.local:5000/scripts/run \
+     -H "Content-Type: application/json" \
+     -d '{"name": "celebrate"}'
+
+# Vérifier qu'il tourne
+curl http://r2-master.local:5000/scripts/running
+
+# L'arrêter
+curl -X POST http://r2-master.local:5000/scripts/stop_all
+```
+
+### 16.4 — Test dashboard mobile
+
+Depuis un smartphone connecté au hotspot `R2D2_Control` :
+1. Ouvrir `http://192.168.4.1:5000`
+2. Vérifier que les indicateurs de status sont verts
+3. Tester les boutons audio
+4. Tester le D-pad (touch)
 
 ---
 
