@@ -377,19 +377,20 @@ ssh artoo@r2-slave.local echo "SSH OK"
 ### 4.1 — Copier le code Slave sur le R2-Slave
 
 ```bash
-# Depuis le R2-Master
+# Depuis le R2-Master — utiliser le script (recommandé)
+bash /home/artoo/r2d2/scripts/deploy.sh --first-install
+
+# Ou manuellement :
 rsync -avz --delete \
   -e "ssh -o StrictHostKeyChecking=no" \
   /home/artoo/r2d2/slave/ \
-  artoo@r2-slave.local:/home/artoo/r2d2/
+  artoo@r2-slave.local:/home/artoo/r2d2/slave/
 
-# Copier aussi le dossier shared
 rsync -avz \
   -e "ssh -o StrictHostKeyChecking=no" \
   /home/artoo/r2d2/shared/ \
   artoo@r2-slave.local:/home/artoo/r2d2/shared/
 
-# Copier le fichier VERSION
 rsync \
   -e "ssh -o StrictHostKeyChecking=no" \
   /home/artoo/r2d2/VERSION \
@@ -400,7 +401,7 @@ rsync \
 
 ```bash
 ssh artoo@r2-slave.local
-ls /home/artoo/r2d2/
+ls /home/artoo/r2d2/slave/
 # Doit afficher: main.py  uart_listener.py  watchdog.py  version_check.py  drivers/  services/
 cat /home/artoo/r2d2/VERSION
 # Doit afficher le même hash que sur le R2-Master
@@ -433,8 +434,8 @@ journalctl -u r2d2-master -f   # logs en temps réel
 
 ```bash
 # Copier les fichiers service
-sudo cp /home/artoo/r2d2/services/r2d2-slave.service /etc/systemd/system/
-sudo cp /home/artoo/r2d2/services/r2d2-version.service /etc/systemd/system/
+sudo cp /home/artoo/r2d2/slave/services/r2d2-slave.service /etc/systemd/system/
+sudo cp /home/artoo/r2d2/slave/services/r2d2-version.service /etc/systemd/system/
 
 # Recharger systemd
 sudo systemctl daemon-reload
@@ -507,9 +508,9 @@ Depuis le R2-Master, tester manuellement :
 python3 -c "
 import sys; sys.path.insert(0, '/home/artoo/r2d2')
 from shared.uart_protocol import build_msg, parse_msg
-print(build_msg('H', '1'))       # H:1:59\n attendu
-print(build_msg('M', '50'))      # M:50:7F\n attendu
-print(parse_msg('H:1:59'))       # ('H', '1') attendu
+print(build_msg('H', '1'))       # H:1:43\n attendu
+print(build_msg('M', '50'))      # M:50:72\n attendu
+print(parse_msg('H:1:43'))       # ('H', '1') attendu
 print(parse_msg('H:1:00'))       # None attendu (CRC invalide)
 "
 ```
