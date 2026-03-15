@@ -43,6 +43,12 @@ err()   { echo -e "${RED}[ERR ]${NC}  $*"; exit 1; }
 # Vérifier qu'on tourne en root
 [ "$EUID" -eq 0 ] || err "Lancer avec sudo : sudo bash $0"
 
+# Vérifier qu'on est bien sur le Slave (pas sur le Master)
+HOSTNAME=$(hostname)
+if [ "$HOSTNAME" = "r2-master" ]; then
+    err "Ce script doit être lancé sur le R2-SLAVE, pas sur le Master ! (hostname: $HOSTNAME)"
+fi
+
 # Vérifier que l'utilisateur artoo existe
 id "$USER" &>/dev/null || err "L'utilisateur '$USER' n'existe pas — reconfigurer via Raspberry Pi Imager"
 
