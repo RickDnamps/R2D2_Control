@@ -66,7 +66,7 @@ echo "[3/4] rsync vers ${SLAVE_HOST}..."
 rsync -avz --delete \
     -e "ssh $SSH_OPTS" \
     "$REPO_PATH/slave/" \
-    "${SLAVE_USER}@${SLAVE_HOST}:${SLAVE_REPO}/"
+    "${SLAVE_USER}@${SLAVE_HOST}:${SLAVE_REPO}/slave/"
 
 rsync -avz \
     -e "ssh $SSH_OPTS" \
