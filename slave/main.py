@@ -1,6 +1,6 @@
 """
 R2-D2 Slave — Point d'entrée.
-Tourne sur Raspberry Pi Zero 2W (corps).
+Tourne sur Raspberry Pi 4B 2GB (corps).
 
 Séquence de boot:
 1. Init display RP2040 (BOOT)
@@ -23,6 +23,7 @@ from slave.uart_listener import UARTListener
 from slave.watchdog import WatchdogController
 from slave.version_check import VersionChecker
 from slave.drivers.display_driver import DisplayDriver
+from slave.drivers.audio_driver import AudioDriver
 
 UART_PORT = "/dev/ttyAMA0"
 UART_BAUD = 115200
@@ -95,6 +96,13 @@ def main() -> None:
     # Display command — transférer commandes DISP: vers le RP2040
     uart.register_callback('DISP', lambda v: display.send_raw(f"DISP:{v}"))
 
+    # Audio
+    audio = AudioDriver()
+    if audio.setup():
+        uart.register_callback('S', audio.handle_uart)
+    else:
+        log.warning("AudioDriver indisponible — son désactivé")
+
     # Démarrer UART
     uart.start()
 
@@ -113,6 +121,7 @@ def main() -> None:
         log.info("Signal arrêt reçu")
         watchdog.stop()
         uart.stop()
+        audio.shutdown()
         display.shutdown()
         log.info("Slave arrêté proprement")
         sys.exit(0)
