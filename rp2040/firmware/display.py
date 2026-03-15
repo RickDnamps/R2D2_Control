@@ -26,12 +26,23 @@ def _clear(tft, color):
     tft.fill(color)
 
 
+def _fill_circle(tft, cx, cy, r, color):
+    """Cercle plein compatible tous drivers gc9a01 (fill_circle pas toujours dispo)."""
+    if hasattr(tft, 'fill_circle'):
+        tft.fill_circle(cx, cy, r, color)
+        return
+    # Fallback : lignes horizontales (Bresenham)
+    for dy in range(-r, r + 1):
+        dx = int(math.sqrt(r * r - dy * dy))
+        tft.fill_rect(cx - dx, cy + dy, 2 * dx + 1, 1, color)
+
+
 def draw_boot(tft):
     """Splash boot : fond noir, logo R2-D2 simplifié."""
     _clear(tft, BLACK)
     # Dôme (demi-cercle haut)
-    tft.fill_circle(CENTER_X, CENTER_Y - 10, 55, WHITE)
-    tft.fill_circle(CENTER_X, CENTER_Y - 10, 45, BLACK)
+    _fill_circle(tft, CENTER_X, CENTER_Y - 10, 55, WHITE)
+    _fill_circle(tft, CENTER_X, CENTER_Y - 10, 45, BLACK)
     # Corps (rectangle)
     tft.fill_rect(CENTER_X - 30, CENTER_Y + 50, 60, 45, WHITE)
     tft.fill_rect(CENTER_X - 24, CENTER_Y + 56, 48, 33, BLACK)
@@ -51,7 +62,7 @@ def draw_syncing(tft, version: str, spinner_step: int = 0):
         y = int(CENTER_Y + 80 * math.sin(angle))
         alpha = int(255 * (i / steps))
         color = gc9a01.color565(255, max(0, alpha // 2), 0)
-        tft.fill_circle(x, y, 8, color)
+        _fill_circle(tft, x, y, 8, color)
     tft.text("SYNCING", CENTER_X - 30, CENTER_Y - 10, ORANGE)
     tft.text(version[:10], CENTER_X - 30, CENTER_Y + 10, WHITE)
 
@@ -60,7 +71,7 @@ def draw_ok(tft, version: str):
     """Validation OK — fond vert, coche."""
     _clear(tft, BLACK)
     # Cercle vert
-    tft.fill_circle(CENTER_X, CENTER_Y - 20, 50, GREEN)
+    _fill_circle(tft, CENTER_X, CENTER_Y - 20, 50, GREEN)
     # Coche simplifiée
     tft.line(CENTER_X - 20, CENTER_Y - 20, CENTER_X - 5, CENTER_Y - 5, WHITE)
     tft.line(CENTER_X - 5, CENTER_Y - 5, CENTER_X + 25, CENTER_Y - 40, WHITE)
@@ -71,7 +82,7 @@ def draw_ok(tft, version: str):
 def draw_error(tft, reason: str):
     """Alerte bloquante rouge."""
     _clear(tft, BLACK)
-    tft.fill_circle(CENTER_X, CENTER_Y - 20, 50, RED)
+    _fill_circle(tft, CENTER_X, CENTER_Y - 20, 50, RED)
     tft.text("!", CENTER_X - 5, CENTER_Y - 35, WHITE)
     tft.text("ERREUR", CENTER_X - 27, CENTER_Y + 45, RED)
     # Affichage reason sur 2 lignes si besoin
