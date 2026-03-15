@@ -28,7 +28,7 @@
 | Composant | Master (dôme) | Slave (corps) |
 |-----------|--------------|---------------|
 | Pi 4B | 4G | 2G |
-| OS | Raspberry Pi OS Lite 64-bit Bookworm | idem |
+| OS | Raspberry Pi OS Lite 64-bit Trixie | idem |
 | WiFi | wlan0 intégré + **clé USB WiFi** (wlan1) | wlan0 intégré suffit |
 | Réseau initial | connecté à ton WiFi maison | connecté à ton WiFi maison |
 
@@ -84,7 +84,7 @@
 
 ---
 
-## ÉTAPE 0 — Configurer local.cfg (OBLIGATOIRE — à faire une seule fois)
+## ÉTAPE 0 — Configurer local.cfg (à faire une seule fois)
 
 `local.cfg` est le fichier de **configuration personnelle** de ton R2-D2.
 Il n'est **jamais écrasé par git pull** — c'est là que vivent ton WiFi et ton GitHub.
@@ -93,29 +93,12 @@ Il n'est **jamais écrasé par git pull** — c'est là que vivent ton WiFi et t
 # Sur le R2-Master, après le git clone
 cd /home/artoo/r2d2/master/config
 cp local.cfg.example local.cfg
-nano local.cfg
+# C'est tout — toutes les valeurs sont déjà pré-remplies dans l'exemple.
+# [home_wifi] sera rempli automatiquement par setup_master_network.sh (étape 2).
 ```
 
-Remplir au minimum :
-```ini
-[github]
-repo_url = https://github.com/TON_USER/r2d2.git   # ton repo ou ton fork
-branch = main
-auto_pull_on_boot = true
-
-[hotspot]
-ssid = R2D2_Control     # personnalise si tu veux
-password = r2d2droid
-
-[deploy]
-button_pin = 17         # BCM pin du bouton dôme
-
-[slave]
-host = r2-slave.local
-```
-
-> **Fork ?** Change simplement `repo_url` vers ton fork.
-> Le Master mettra à jour le remote `origin` automatiquement au prochain git pull.
+> Si tu veux personnaliser le SSID/password du hotspot ou le pin du bouton dôme,
+> éditer `local.cfg` avec `nano local.cfg` avant de passer à l'étape 2.
 
 ---
 
@@ -148,7 +131,7 @@ sudo apt-get update && sudo apt-get upgrade -y
 sudo apt-get install -y python3-pip python3-serial git rsync
 
 # Dépendances Python
-pip3 install -r /home/artoo/r2d2/master/requirements.txt
+pip3 install --break-system-packages -r /home/artoo/r2d2/master/requirements.txt
 
 # Activer UART hardware (désactiver console série)
 sudo raspi-config nonint do_serial_hw 0   # active UART hardware
@@ -188,7 +171,7 @@ sudo apt-get update && sudo apt-get upgrade -y
 sudo apt-get install -y python3-pip python3-serial git
 
 # Dépendances Python (copiées par rsync à l'étape 4)
-# pip3 install -r /home/artoo/r2d2/requirements.txt  ← après le premier rsync
+# pip3 install --break-system-packages -r /home/artoo/r2d2/slave/requirements.txt  ← après le premier rsync
 
 # Activer UART hardware
 sudo raspi-config nonint do_serial_hw 0
@@ -209,7 +192,7 @@ sudo reboot
 
 ### Principe
 
-Raspberry Pi OS Bookworm utilise **NetworkManager** par défaut.
+Raspberry Pi OS Trixie utilise **NetworkManager** par défaut.
 Le script détecte automatiquement les credentials WiFi de ton réseau maison
 (déjà configuré sur wlan0 par l'Imager), les sauvegarde dans `local.cfg`,
 puis bascule l'interface :

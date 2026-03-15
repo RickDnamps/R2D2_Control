@@ -422,9 +422,9 @@ def parse_msg(raw: str) -> tuple[str, str] | None:
     return (msg_type, msg_value)
 
 # Exemples de messages valides générés
-build_msg("M", "50")          # → "M:50:7F\n"
-build_msg("H", "1")           # → "H:1:59\n"
-build_msg("S", "01")          # → "S:01:62\n"
+build_msg("M", "50")          # → "M:50:72\n"
+build_msg("H", "1")           # → "H:1:43\n"
+build_msg("S", "01")          # → "S:01:6C\n"
 build_msg("V", "abc123")      # → "V:abc123:XX\n"
 
 # Messages multi-valeurs (ex: drive différentiel)
@@ -522,9 +522,9 @@ R2-SLAVE (Pi 4B 2G — Corps)
   (pas de wlan1 — le Slave n'a pas besoin d'internet directement)
 ```
 
-### Configuration réseau — Outil : NetworkManager (Bookworm)
+### Configuration réseau — Outil : NetworkManager (Trixie)
 
-Raspberry Pi OS Bookworm utilise **NetworkManager** (pas wpa_supplicant + hostapd).
+Raspberry Pi OS Trixie utilise **NetworkManager** (pas wpa_supplicant + hostapd).
 Toute la configuration réseau se fait via `nmcli`.
 
 ```bash

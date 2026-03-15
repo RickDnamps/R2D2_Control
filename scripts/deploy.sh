@@ -18,12 +18,14 @@ VENDOR_DIR="$REPO_PATH/slave/vendor"
 
 DO_REBOOT=true
 DO_GIT_PULL=false
+FIRST_INSTALL=false
 
 # Parse arguments
 for arg in "$@"; do
     case $arg in
-        --no-reboot) DO_REBOOT=false ;;
-        --git-pull)  DO_GIT_PULL=true ;;
+        --no-reboot)     DO_REBOOT=false ;;
+        --git-pull)      DO_GIT_PULL=true ;;
+        --first-install) FIRST_INSTALL=true ;;
     esac
 done
 
@@ -91,7 +93,7 @@ if [ -d "$VENDOR_DIR" ] && [ "$(ls -A $VENDOR_DIR)" ]; then
     # Installer depuis le cache local — fonctionne sans internet
     echo "      → installation offline depuis vendor/"
     ssh $SSH_OPTS "${SLAVE_USER}@${SLAVE_HOST}" \
-        "pip3 install -q --no-index --find-links=${SLAVE_REPO}/vendor -r ${SLAVE_REPO}/requirements.txt"
+        "pip3 install --break-system-packages -q --no-index --find-links=${SLAVE_REPO}/vendor -r ${SLAVE_REPO}/requirements.txt"
 else
     # Pas de vendor/ : télécharger depuis PyPI (nécessite NAT wlan1 actif)
     echo "      → vendor/ absent, téléchargement PyPI (nécessite internet via Master NAT)"
@@ -102,7 +104,7 @@ else
         # Re-rsync le vendor/ fraîchement créé
         rsync -az -e "ssh $SSH_OPTS" "$VENDOR_DIR/" "${SLAVE_USER}@${SLAVE_HOST}:${SLAVE_REPO}/vendor/"
         ssh $SSH_OPTS "${SLAVE_USER}@${SLAVE_HOST}" \
-            "pip3 install -q --no-index --find-links=${SLAVE_REPO}/vendor -r ${SLAVE_REPO}/requirements.txt"
+            "pip3 install --break-system-packages -q --no-index --find-links=${SLAVE_REPO}/vendor -r ${SLAVE_REPO}/requirements.txt"
         echo "      → vendor/ créé pour les prochains déploiements offline"
     else
         echo "      ATTENTION: vendor/ absent et wlan1 indisponible — pip ignoré"
@@ -111,15 +113,34 @@ else
 fi
 
 # ------------------------------------------------------------------
+# Premier install : services systemd sur le Slave
+# ------------------------------------------------------------------
+if [ "$FIRST_INSTALL" = true ]; then
+    echo "[4/5] Installation services systemd sur le Slave..."
+    ssh $SSH_OPTS "${SLAVE_USER}@${SLAVE_HOST}" bash << 'REMOTE'
+        sudo cp /home/artoo/r2d2/services/r2d2-slave.service   /etc/systemd/system/
+        sudo cp /home/artoo/r2d2/services/r2d2-version.service /etc/systemd/system/
+        sudo systemctl daemon-reload
+        sudo systemctl enable r2d2-version r2d2-slave
+        echo "Services installés et activés"
+REMOTE
+    echo "      Services systemd OK"
+else
+    echo "[4/5] Services systemd ignorés (--first-install non spécifié)"
+fi
+
+# ------------------------------------------------------------------
 # Reboot Slave
 # ------------------------------------------------------------------
 if [ "$DO_REBOOT" = true ]; then
-    echo "[4/4] Redémarrage service r2d2-slave sur le Slave..."
+    echo "[5/5] Redémarrage service r2d2-slave sur le Slave..."
     ssh $SSH_OPTS "${SLAVE_USER}@${SLAVE_HOST}" \
-        "sudo systemctl restart r2d2-slave"
-    echo "      Service redémarré"
+        "sudo systemctl restart r2d2-slave" 2>/dev/null || \
+    ssh $SSH_OPTS "${SLAVE_USER}@${SLAVE_HOST}" \
+        "sudo reboot" 2>/dev/null || true
+    echo "      Slave redémarré"
 else
-    echo "[4/4] Reboot ignoré (--no-reboot)"
+    echo "[5/5] Reboot ignoré (--no-reboot)"
 fi
 
 echo ""
