@@ -32,10 +32,10 @@ from touch import TouchHandler
 # ------------------------------------------------------------------
 TFT_SCK  = Pin(10)
 TFT_MOSI = Pin(11)
-TFT_DC   = Pin(8)
-TFT_CS   = Pin(9)
-TFT_RST  = Pin(12)
-TFT_BL   = Pin(25)
+TFT_DC   = Pin(8,  Pin.OUT)
+TFT_CS   = Pin(9,  Pin.OUT)
+TFT_RST  = Pin(12, Pin.OUT)
+TFT_BL   = Pin(25, Pin.OUT)
 
 I2C_SDA  = Pin(6)
 I2C_SCL  = Pin(7)
@@ -47,8 +47,7 @@ INT_PIN  = Pin(17, Pin.IN)  # CST816S interrupt
 # ------------------------------------------------------------------
 def init_display():
     spi = SPI(1, baudrate=40_000_000, sck=TFT_SCK, mosi=TFT_MOSI)
-    tft = gc9a01.GC9A01(spi, 240, 240, dc=TFT_DC, cs=TFT_CS, reset=TFT_RST)
-    TFT_BL.value(1)
+    tft = gc9a01.GC9A01(spi, 240, 240, dc=TFT_DC, cs=TFT_CS, reset=TFT_RST, backlight=TFT_BL)
     tft.init()
     return tft
 
