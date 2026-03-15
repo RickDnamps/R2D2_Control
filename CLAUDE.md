@@ -338,10 +338,11 @@ r2d2/
 │       ├── display.py           ← rendu GC9A01
 │       └── touch.py             ← CST816S touch handler
 └── scripts/
-    ├── deploy.sh                ← rsync Slave + install vendor + reboot
-    ├── setup_hotspot.sh         ← hostapd + dnsmasq hotspot wlan0
-    ├── setup_ssh_keys.sh        ← génère + copie clés Ed25519
-    └── vendor_deps.sh           ← pip download → slave/vendor/
+    ├── deploy.sh                    ← rsync Slave + install vendor + reboot
+    ├── setup_master_network.sh      ← réseau Master : lit WiFi maison, configure hotspot wlan0 + wlan1
+    ├── setup_slave_network.sh       ← réseau Slave : connecte wlan0 au hotspot Master
+    ├── setup_ssh_keys.sh            ← génère + copie clés Ed25519
+    └── vendor_deps.sh               ← pip download → slave/vendor/
 ```
 
 ---
@@ -454,27 +455,27 @@ SYNC_RETRY_BACKOFF_S = [5, 15, 30]  # backoff exponentiel
 
 ## 📦 Dépendances Python
 
-### Hostnames
+### Hostnames et IPs
 ```
-R2-Master  →  Pi 4B 4G  (Dôme)    →  r2-master.local
-R2-Slave   →  Pi 4B 2G  (Corps)   →  r2-slave.local
+R2-Master  →  Pi 4B 4G  (Dôme)    →  r2-master.local  /  192.168.4.1 (fixe, hotspot)
+R2-Slave   →  Pi 4B 2G  (Corps)   →  r2-slave.local   /  192.168.4.x (DHCP Master)
 ```
-Configurer via `sudo raspi-config` → System Options → Hostname
-ou : `echo "r2-master" | sudo tee /etc/hostname`
+
+Configurer les hostnames via **Raspberry Pi Imager** (⚙️ Options) avant de graver la SD.
+Résolution `.local` assurée par **avahi-daemon** (installé par les scripts réseau).
 
 ### Username
 ```
 Username sur les deux Pi : artoo
-# Pas 'pi' — créer l'utilisateur artoo à l'installation
-# via Raspberry Pi Imager → Options App → Username: artoo
+Configurer via Raspberry Pi Imager → ⚙️ Options → Username: artoo
 ```
 
 Utilisation dans les scripts :
 ```python
 MASTER_HOST = "r2-master.local"
 SLAVE_HOST  = "r2-slave.local"
-MASTER_IP   = "192.168.4.1"   # IP fixe sur wlan0 (Hotspot)
-SLAVE_IP    = "192.168.4.2"   # IP fixe attribuée par le Master DHCP
+MASTER_IP   = "192.168.4.1"   # IP fixe wlan0 Master (hotspot)
+SLAVE_IP    = "192.168.4.x"   # DHCP attribué par NetworkManager Master
 SSH_USER    = "artoo"
 ```
 
@@ -509,80 +510,81 @@ rsync -av /home/artoo/r2d2/slave/ artoo@r2-slave.local:/home/artoo/r2d2/
 ```
 ```
 
-### Réseau Pi 4B — Double interface Wi-Fi
-```
-wlan0 = interface interne Pi 4B
-        → Point d'Accès (Hotspot) permanent
-        → SSID: "R2D2_Control"
-        → IP fixe: 192.168.4.1
-        → R2-Slave s'y connecte automatiquement
-        → App Android s'y connecte pour contrôle
+### Réseau — Architecture finale
 
-wlan1 = clé USB Wi-Fi externe
-        → Client Wi-Fi domestique (réseau maison)
-        → Connexion automatique si réseau connu disponible
-        → Utilisé UNIQUEMENT pour git pull / GitHub
-        → Optionnel — le droid fonctionne sans
+```
+R2-MASTER (Pi 4B 4G — Dôme)
+  wlan0  → Hotspot permanent          192.168.4.1   SSID dans local.cfg [hotspot]
+  wlan1  → WiFi maison (clé USB)      DHCP          SSID dans local.cfg [home_wifi]
+
+R2-SLAVE (Pi 4B 2G — Corps)
+  wlan0  → Client du hotspot Master   192.168.4.x   (DHCP attribué par Master)
+  (pas de wlan1 — le Slave n'a pas besoin d'internet directement)
 ```
 
-**Logique git pull au démarrage :**
-```python
-def try_git_pull() -> bool:
-    """
-    Tentative de git pull au boot si wlan1 connecté.
-    Timeout court pour ne pas bloquer le démarrage.
-    Retourne True si pull réussi, False sinon (pas bloquant).
-    """
-    if not is_wlan1_connected():
-        logging.info("wlan1 non disponible — git pull ignoré")
-        return False
-    try:
-        result = subprocess.run(
-            ["git", "pull"],
-            cwd="/home/artoo/r2d2",
-            timeout=30,          # max 30s pour ne pas bloquer le boot
-            capture_output=True
-        )
-        if result.returncode == 0:
-            # Mettre à jour le fichier VERSION
-            update_version_file()
-            logging.info("git pull réussi au démarrage")
-            return True
-        else:
-            logging.warning(f"git pull échoué: {result.stderr}")
-            return False
-    except subprocess.TimeoutExpired:
-        logging.warning("git pull timeout — démarrage sans update")
-        return False
-    except Exception as e:
-        logging.error(f"git pull erreur: {e}")
-        return False
+### Configuration réseau — Outil : NetworkManager (Bookworm)
 
-def is_wlan1_connected() -> bool:
-    """Vérifie si wlan1 a une IP (= connecté au Wi-Fi domestique)."""
-    try:
-        result = subprocess.run(
-            ["ip", "addr", "show", "wlan1"],
-            capture_output=True, text=True, timeout=5
-        )
-        return "inet " in result.stdout
-    except Exception:
-        return False
+Raspberry Pi OS Bookworm utilise **NetworkManager** (pas wpa_supplicant + hostapd).
+Toute la configuration réseau se fait via `nmcli`.
+
+```bash
+# Vérifier l'état réseau
+nmcli device status
+# wlan0  wifi  connecté  r2d2-hotspot      ← Master
+# wlan1  wifi  connecté  r2d2-internet     ← Master
+
+# Connexions NetworkManager créées par les scripts
+nmcli connection show
+# r2d2-hotspot       → wlan0, mode AP, ipv4.method shared, autoconnect prio 100
+# r2d2-internet      → wlan1, client WiFi maison, autoconnect prio 10
+# r2d2-master-hotspot → wlan0 Slave, client hotspot Master, autoconnect prio 100
 ```
 
-**Séquence de boot Master complète :**
+### Scripts d'installation réseau
+
+| Script | Exécuté sur | Ce qu'il fait |
+|--------|-------------|---------------|
+| `setup_master_network.sh` | R2-Master | Lit WiFi maison → demande SSID/password hotspot → sauvegarde local.cfg → configure wlan0 AP + wlan1 client |
+| `setup_slave_network.sh`  | R2-Slave  | Demande SSID/password hotspot Master → configure wlan0 client hotspot |
+
+> ⚠️ **Ordre obligatoire : Master TOUJOURS en premier.**
+> Le hotspot Master doit exister avant de configurer le Slave.
+
+### local.cfg — Sections réseau
+
+```ini
+[home_wifi]
+ssid     = TON_WIFI_MAISON     # rempli automatiquement par setup_master_network.sh
+password = TON_MOT_DE_PASSE    # lu depuis NetworkManager au moment du setup
+
+[hotspot]
+ssid     = R2D2_Control        # SSID du hotspot R2-D2 (personnalisable)
+password = r2d2droid           # mot de passe WPA (min 8 chars, personnalisable)
 ```
-1. wlan0 démarre en mode AP (toujours, prioritaire)
-2. wlan1 tente connexion Wi-Fi domestique (si connu)
-3. Si wlan1 connecté → git pull (timeout 30s, non bloquant)
+
+Les deux sections sont remplies automatiquement par `setup_master_network.sh`.
+Le password hotspot est demandé interactivement (défaut `r2d2droid`).
+Le mot de passe hotspot doit ensuite être saisi manuellement sur le Slave.
+
+### Séquence de boot Master
+```
+1. NetworkManager démarre wlan0 en mode AP (autoconnect prio 100 — toujours)
+2. NetworkManager tente wlan1 → WiFi maison (autoconnect prio 10)
+3. master/main.py : si wlan1 a une IP → git pull (timeout 30s, non bloquant)
 4. Mettre à jour VERSION si pull réussi
-5. Démarrer rsync vers Slave si nouvelle version
-6. Démarrer app principale (Flask + UART)
+5. Démarrer app principale (UART + Teeces + Flask si Phase 4 activée)
+```
+
+### Séquence de boot Slave
+```
+1. NetworkManager démarre wlan0 → connexion au hotspot Master (autoconnect prio 100)
+2. Obtient IP 192.168.4.x via DHCP (géré par NetworkManager Master)
+3. slave/main.py démarre : UART listener → Watchdog → Audio → ...
 ```
 
 **Bouton dôme — logique complète :**
 ```python
-BUTTON_PIN = XX  # BCM à définir
+BUTTON_PIN = XX  # BCM à définir (configuré dans local.cfg [deploy] button_pin)
 
 # Appui court (< 2s) :
 #   Si wlan1 dispo  → git pull + rsync + reboot Slave
@@ -758,10 +760,32 @@ Docs: description                # documentation
 
 ### .gitignore — ne jamais committer
 ```
-slave/sounds/         # sons trop lourds pour git
-*.log                 # logs
-master/config/local.cfg  # credentials WiFi + GitHub URL personnelle
-slave/vendor/         # dépendances pip pré-téléchargées
+slave/sounds/            # sons trop lourds pour git
+*.log                    # logs
+master/config/local.cfg  # credentials WiFi maison + hotspot + GitHub URL personnelle
+slave/vendor/            # dépendances pip pré-téléchargées
+```
+
+### local.cfg — sections complètes
+```ini
+[github]
+repo_url           = https://github.com/RickDnamps/R2D2_Control.git
+branch             = main
+auto_pull_on_boot  = true
+
+[home_wifi]           ← rempli par setup_master_network.sh
+ssid               = TON_WIFI_MAISON
+password           = TON_MOT_DE_PASSE
+
+[hotspot]             ← rempli par setup_master_network.sh (demandé interactivement)
+ssid               = R2D2_Control
+password           = r2d2droid
+
+[deploy]
+button_pin         = 17
+
+[slave]
+host               = r2-slave.local
 ```
 
 ---

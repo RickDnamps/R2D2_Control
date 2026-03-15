@@ -38,12 +38,13 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     # Blueprints
     # ------------------------------------------------------------------
-    from master.api.audio_bp  import audio_bp
-    from master.api.motion_bp import motion_bp
-    from master.api.servo_bp  import servo_bp
-    from master.api.script_bp import script_bp
-    from master.api.status_bp import status_bp
-    from master.api.teeces_bp import teeces_bp
+    from master.api.audio_bp    import audio_bp
+    from master.api.motion_bp   import motion_bp
+    from master.api.servo_bp    import servo_bp
+    from master.api.script_bp   import script_bp
+    from master.api.status_bp   import status_bp
+    from master.api.teeces_bp   import teeces_bp
+    from master.api.settings_bp import settings_bp
 
     app.register_blueprint(audio_bp)
     app.register_blueprint(motion_bp)
@@ -51,6 +52,7 @@ def create_app() -> Flask:
     app.register_blueprint(script_bp)
     app.register_blueprint(status_bp)
     app.register_blueprint(teeces_bp)
+    app.register_blueprint(settings_bp)
 
     # ------------------------------------------------------------------
     # Route principale → dashboard web
@@ -70,5 +72,5 @@ def create_app() -> Flask:
     def server_error(e):
         return jsonify({'error': 'Internal server error'}), 500
 
-    log.info("Flask app créée — blueprints: audio, motion, servo, scripts, status, teeces")
+    log.info("Flask app créée — blueprints: audio, motion, servo, scripts, status, teeces, settings")
     return app

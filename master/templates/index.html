@@ -2,139 +2,273 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>R2-D2 Control</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
 <!-- ================================================================
-     TOPBAR — Status
+     TOPBAR
 ================================================================ -->
 <header class="topbar">
   <div class="topbar-brand">
     <span class="r2-icon">◉</span>
-    <span>R2-D2 Control</span>
+    <span>R2-D2</span>
   </div>
   <div class="topbar-status">
-    <span class="status-pill" id="pill-heartbeat">● Heartbeat</span>
+    <span class="status-pill" id="pill-heartbeat">● HB</span>
     <span class="status-pill" id="pill-uart">● UART</span>
     <span class="status-pill" id="pill-teeces">● Teeces</span>
     <span class="status-pill" id="pill-vesc">● VESC</span>
-    <span id="uptime-label" class="uptime">--:--:--</span>
+    <span id="uptime-label" class="uptime">--:--</span>
     <span id="version-label" class="version">v?</span>
   </div>
 </header>
 
 <!-- ================================================================
-     MAIN GRID
+     TAB BAR
 ================================================================ -->
-<main class="grid">
+<nav class="tabbar">
+  <button class="tab active" data-tab="control">🕹 Contrôle</button>
+  <button class="tab" data-tab="audio">🔊 Audio</button>
+  <button class="tab" data-tab="sequences">📜 Séquences</button>
+  <button class="tab" data-tab="actuators">🦾 Actionneurs</button>
+  <button class="tab" data-tab="settings">⚙️ Réglages</button>
+</nav>
 
-  <!-- ---- AUDIO ---- -->
-  <section class="card" id="card-audio">
-    <h2>🔊 Audio</h2>
-    <div class="category-grid" id="audio-categories">
-      <!-- Généré par JS -->
-    </div>
-    <div class="row mt">
-      <button class="btn btn-danger" onclick="api('/audio/stop','POST')">⏹ Stop</button>
-    </div>
-  </section>
+<!-- ================================================================
+     TAB: CONTRÔLE — Joysticks virtuels + stream caméra
+================================================================ -->
+<div class="tab-content active" id="tab-control">
 
-  <!-- ---- MOTION ---- -->
-  <section class="card" id="card-motion">
-    <h2>🚗 Propulsion</h2>
-    <div class="dpad">
-      <button class="dpad-btn dpad-up"    onmousedown="drive(0.6,0.6)"  onmouseup="driveStop()" ontouchstart="drive(0.6,0.6)" ontouchend="driveStop()">▲</button>
-      <button class="dpad-btn dpad-left"  onmousedown="drive(-0.4,0.4)" onmouseup="driveStop()" ontouchstart="drive(-0.4,0.4)" ontouchend="driveStop()">◀</button>
-      <button class="dpad-btn dpad-stop"  onclick="driveStop()">■</button>
-      <button class="dpad-btn dpad-right" onmousedown="drive(0.4,-0.4)" onmouseup="driveStop()" ontouchstart="drive(0.4,-0.4)" ontouchend="driveStop()">▶</button>
-      <button class="dpad-btn dpad-down"  onmousedown="drive(-0.6,-0.6)" onmouseup="driveStop()" ontouchstart="drive(-0.6,-0.6)" ontouchend="driveStop()">▼</button>
+  <div class="control-arena">
+
+    <!-- Joystick gauche — Propulsion -->
+    <div class="joystick-wrap">
+      <div class="joystick-label">PROPULSION</div>
+      <div class="joystick-ring" id="js-left-ring">
+        <div class="joystick-knob" id="js-left-knob"></div>
+      </div>
+      <div class="joystick-hint">↕ Avancer/Reculer<br>↔ Tourner</div>
     </div>
-    <div class="speed-control">
+
+    <!-- Zone centrale — Caméra + STOP -->
+    <div class="camera-zone">
+      <div class="camera-frame" id="camera-frame">
+        <!-- Phase 5: remplacer par <img id="camera-stream" src="/video/stream"> -->
+        <div class="camera-offline" id="camera-offline">
+          <div class="camera-icon">📷</div>
+          <div>Stream caméra</div>
+          <span class="phase-badge">Phase 5</span>
+        </div>
+      </div>
+      <button class="estop-btn" id="estop-btn" onclick="emergencyStop()">⬛ STOP</button>
+    </div>
+
+    <!-- Joystick droit — Dôme + Caméra -->
+    <div class="joystick-wrap">
+      <div class="joystick-label">DÔME / CAM</div>
+      <div class="joystick-ring" id="js-right-ring">
+        <div class="joystick-knob" id="js-right-knob"></div>
+      </div>
+      <div class="joystick-hint">↔ Tourner dôme<br>↕ Caméra (Ph.5)</div>
+    </div>
+
+  </div>
+
+  <!-- Barre de contrôles rapides -->
+  <div class="control-quickbar">
+    <div class="speed-wrap">
       <label>Vitesse max <span id="speed-val">60%</span></label>
       <input type="range" id="speed-slider" min="10" max="100" value="60"
              oninput="setSpeed(this.value)">
     </div>
-  </section>
-
-  <!-- ---- DOME ---- -->
-  <section class="card" id="card-dome">
-    <h2>🌀 Dôme</h2>
-    <div class="dome-controls">
-      <button class="btn" onmousedown="domeTurn(-0.5)" onmouseup="domeStop()" ontouchstart="domeTurn(-0.5)" ontouchend="domeStop()">◀ Gauche</button>
-      <button class="btn" onclick="domeStop()">Centre</button>
-      <button class="btn" onmousedown="domeTurn(0.5)"  onmouseup="domeStop()" ontouchstart="domeTurn(0.5)" ontouchend="domeStop()">Droite ▶</button>
-    </div>
-    <div class="row mt">
+    <div class="quick-btns">
       <label class="toggle-label">
-        Aléatoire
-        <input type="checkbox" id="dome-random" onchange="domeRandom(this.checked)">
+        Dôme auto
+        <input type="checkbox" id="dome-random-ctrl" onchange="domeRandom(this.checked)">
         <span class="toggle-switch"></span>
       </label>
+      <button class="btn" onclick="teecesMode('random')">💡 Teeces</button>
+      <button class="btn btn-dark" onclick="teecesMode('off')">💡 OFF</button>
     </div>
-  </section>
+    <div class="kbd-hint">Clavier: WASD / ↑↓←→</div>
+  </div>
 
-  <!-- ---- TEECES ---- -->
-  <section class="card" id="card-teeces">
-    <h2>💡 Teeces</h2>
-    <div class="btn-group">
-      <button class="btn btn-active" onclick="teecesMode('random')">Aléatoire</button>
-      <button class="btn" onclick="teecesMode('leia')">Leia</button>
-      <button class="btn btn-dark" onclick="teecesMode('off')">OFF</button>
-    </div>
-    <div class="row mt">
-      <input type="text" id="teeces-text" placeholder="Texte FLD..." maxlength="20"
-             class="input-text">
-      <button class="btn" onclick="sendTeecesText()">Envoyer</button>
-    </div>
-  </section>
+</div>
 
-  <!-- ---- SERVOS ---- -->
-  <section class="card" id="card-servos">
-    <h2>🦾 Servos Body</h2>
-    <div class="servo-grid" id="servo-list">
-      <!-- Généré par JS -->
-    </div>
-    <div class="row mt">
-      <button class="btn" onclick="api('/servo/open_all','POST')">Ouvrir tout</button>
-      <button class="btn btn-dark" onclick="api('/servo/close_all','POST')">Fermer tout</button>
-    </div>
-  </section>
+<!-- ================================================================
+     TAB: AUDIO
+================================================================ -->
+<div class="tab-content" id="tab-audio">
+  <div class="grid">
+    <section class="card">
+      <h2>🔊 Audio — Catégories</h2>
+      <div class="category-grid" id="audio-categories">
+        <!-- Généré par JS -->
+      </div>
+      <div class="row mt">
+        <button class="btn btn-danger" onclick="api('/audio/stop','POST')">⏹ Stop audio</button>
+      </div>
+    </section>
+  </div>
+</div>
 
-  <!-- ---- SCRIPTS ---- -->
-  <section class="card" id="card-scripts">
-    <h2>📜 Scripts</h2>
-    <div id="script-list" class="script-list">
-      <!-- Généré par JS -->
-    </div>
-    <div class="row mt">
-      <button class="btn btn-danger" onclick="api('/scripts/stop_all','POST')">⏹ Stop all</button>
-    </div>
-    <div class="running-scripts mt">
-      <strong>En cours:</strong>
-      <span id="running-scripts">—</span>
-    </div>
-  </section>
+<!-- ================================================================
+     TAB: SÉQUENCES
+================================================================ -->
+<div class="tab-content" id="tab-sequences">
+  <div class="grid">
+    <section class="card">
+      <h2>📜 Scripts de séquence</h2>
+      <div id="script-list" class="script-list">
+        <!-- Généré par JS -->
+      </div>
+      <div class="row mt">
+        <button class="btn btn-danger" onclick="api('/scripts/stop_all','POST')">⏹ Stop all</button>
+      </div>
+      <div class="running-scripts mt">
+        <strong>En cours :</strong>
+        <span id="running-scripts">—</span>
+      </div>
+    </section>
+  </div>
+</div>
 
-  <!-- ---- SYSTÈME ---- -->
-  <section class="card" id="card-system">
-    <h2>⚙️ Système</h2>
-    <div class="btn-group-v">
-      <button class="btn btn-warn" onclick="confirmAction('Reboot Master ?', '/system/reboot')">
-        🔁 Reboot Master
-      </button>
-      <button class="btn btn-warn" onclick="confirmAction('Reboot Slave ?', '/system/reboot_slave')">
-        🔁 Reboot Slave
-      </button>
-      <button class="btn btn-danger" onclick="confirmAction('SHUTDOWN Master ?', '/system/shutdown')">
-        ⏻ Shutdown Master
-      </button>
-    </div>
-  </section>
+<!-- ================================================================
+     TAB: ACTIONNEURS — Teeces + Servos
+================================================================ -->
+<div class="tab-content" id="tab-actuators">
+  <div class="grid">
 
-</main>
+    <!-- Teeces -->
+    <section class="card">
+      <h2>💡 Teeces (Logics FLD/RLD/PSI)</h2>
+      <div class="btn-group">
+        <button class="btn btn-active" id="teeces-btn-random" onclick="teecesMode('random')">Aléatoire</button>
+        <button class="btn" id="teeces-btn-leia" onclick="teecesMode('leia')">Leia</button>
+        <button class="btn btn-dark" id="teeces-btn-off" onclick="teecesMode('off')">OFF</button>
+      </div>
+      <div class="row mt">
+        <input type="text" id="teeces-text" placeholder="Texte FLD (max 20 chars)…"
+               maxlength="20" class="input-text">
+        <button class="btn" onclick="sendTeecesText()">Envoyer</button>
+      </div>
+    </section>
+
+    <!-- Servos -->
+    <section class="card">
+      <h2>🦾 Servos Body</h2>
+      <div class="servo-grid" id="servo-list">
+        <!-- Généré par JS -->
+      </div>
+      <div class="row mt">
+        <button class="btn" onclick="api('/servo/open_all','POST')">Ouvrir tout</button>
+        <button class="btn btn-dark" onclick="api('/servo/close_all','POST')">Fermer tout</button>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ================================================================
+     TAB: RÉGLAGES
+================================================================ -->
+<div class="tab-content" id="tab-settings">
+  <div class="settings-grid">
+
+    <!-- WiFi Internet (wlan1) -->
+    <section class="card settings-card">
+      <h2>📡 WiFi Internet (wlan1)</h2>
+      <div class="settings-status" id="wifi-status">Chargement…</div>
+
+      <div class="form-group">
+        <label>Réseaux disponibles</label>
+        <div class="row">
+          <select id="wifi-scan-list" class="input-text" onchange="onScanSelect(this.value)">
+            <option value="">— Cliquer Scan —</option>
+          </select>
+          <button class="btn" id="btn-scan" onclick="scanWifi()">🔍 Scan</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>SSID</label>
+        <input type="text" id="wifi-ssid" class="input-text" placeholder="Nom du réseau WiFi">
+      </div>
+      <div class="form-group">
+        <label>Mot de passe</label>
+        <input type="password" id="wifi-password" class="input-text" placeholder="Laisser vide pour ne pas changer">
+      </div>
+      <button class="btn btn-active" onclick="applyWifi()">✅ Connecter wlan1</button>
+    </section>
+
+    <!-- Hotspot R2-D2 (wlan0) -->
+    <section class="card settings-card">
+      <h2>📶 Hotspot R2-D2 (wlan0)</h2>
+      <div class="settings-status" id="hotspot-status">Chargement…</div>
+
+      <div class="form-group">
+        <label>SSID du hotspot</label>
+        <input type="text" id="hotspot-ssid" class="input-text">
+      </div>
+      <div class="form-group">
+        <label>Mot de passe (min 8 caractères)</label>
+        <input type="password" id="hotspot-password" class="input-text"
+               placeholder="Laisser vide pour ne pas changer">
+      </div>
+      <div class="settings-note">
+        ⚠️ IP fixe : 192.168.4.1 — les clients devront se reconnecter avec les nouveaux credentials
+      </div>
+      <button class="btn btn-warn" onclick="applyHotspot()">✅ Appliquer + Redémarrer Hotspot</button>
+    </section>
+
+    <!-- GitHub / Déploiement -->
+    <section class="card settings-card">
+      <h2>🐙 GitHub / Déploiement</h2>
+      <div class="form-group">
+        <label>Branche Git</label>
+        <input type="text" id="git-branch" class="input-text">
+      </div>
+      <div class="form-group">
+        <label>Hostname Slave</label>
+        <input type="text" id="slave-host" class="input-text">
+      </div>
+      <div class="form-group">
+        <label class="toggle-label">
+          Auto-pull au démarrage
+          <input type="checkbox" id="auto-pull">
+          <span class="toggle-switch"></span>
+        </label>
+      </div>
+      <button class="btn" onclick="saveConfig()">💾 Sauvegarder</button>
+    </section>
+
+    <!-- Système -->
+    <section class="card settings-card">
+      <h2>⚙️ Système</h2>
+      <div class="settings-status" id="system-version">Chargement…</div>
+      <div class="btn-group-v">
+        <button class="btn btn-warn"
+                onclick="confirmAction('Reboot Master ?', '/system/reboot')">
+          🔁 Reboot Master
+        </button>
+        <button class="btn btn-warn"
+                onclick="confirmAction('Reboot Slave ?', '/system/reboot_slave')">
+          🔁 Reboot Slave
+        </button>
+        <button class="btn btn-danger"
+                onclick="confirmAction('SHUTDOWN Master ?', '/system/shutdown')">
+          ⏻ Shutdown Master
+        </button>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- Toast notifications -->
+<div id="toast" class="toast"></div>
 
 <script src="/static/js/app.js"></script>
 </body>
