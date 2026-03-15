@@ -89,9 +89,20 @@ host = r2-slave.local
 
 ### 1.1 — Sur le R2-Master (Pi 4B 4G — Dôme)
 
+> **Prérequis Imager** : lors de la gravure de la carte SD, configurer via
+> Raspberry Pi Imager → ⚙️ Options :
+> - Username : `artoo` / Password : (ton choix)
+> - Hostname : `r2-master`
+> - WiFi : ton réseau maison (SSID + mot de passe)
+> - SSH activé
+>
+> Le Pi bootera directement connecté à ton WiFi maison sur `wlan0`.
+
 ```bash
 # Connexion SSH (réseau domestique, première fois)
-ssh artoo@<IP_R2SLAVE_RESEAU_MAISON>
+ssh artoo@r2-master.local
+# ou avec l'IP si .local ne fonctionne pas encore :
+ssh artoo@<IP_R2MASTER_RESEAU_MAISON>
 
 # Définir le hostname
 sudo hostnamectl set-hostname r2-master
@@ -124,9 +135,14 @@ sudo reboot
 
 ### 1.2 — Sur le R2-Slave (Pi 4B 2G — Corps)
 
+> **Prérequis Imager** : même chose que le Master :
+> - Username : `artoo` / Hostname : `r2-slave`
+> - WiFi : ton réseau maison (le Slave passera ensuite sur le hotspot Master)
+> - SSH activé
+
 ```bash
 # Connexion SSH (réseau domestique, première fois)
-ssh artoo@<IP_R2SLAVE_RESEAU_MAISON>
+ssh artoo@r2-slave.local
 
 # Définir le hostname
 sudo hostnamectl set-hostname r2-slave
@@ -157,65 +173,82 @@ sudo reboot
 
 ## ÉTAPE 2 — Hotspot Wi-Fi sur R2-Master
 
-Le R2-Master doit avoir **deux interfaces Wi-Fi** :
-- `wlan0` = interface interne → Hotspot permanent "R2D2_Control"
-- `wlan1` = clé USB Wi-Fi externe → réseau domestique (git pull)
+### Principe
 
-### 2.1 — Brancher la clé USB Wi-Fi externe
+Raspberry Pi OS Bookworm utilise **NetworkManager** par défaut.
+Le script détecte automatiquement les credentials WiFi de ton réseau maison
+(déjà configuré sur wlan0 par l'Imager), les sauvegarde dans `local.cfg`,
+puis bascule l'interface :
 
-Brancher la clé USB Wi-Fi sur un port USB du R2-Master avant de continuer.
+```
+État initial (sorti de l'Imager) :
+  wlan0  → connecté à ton WiFi maison
 
-Vérifier qu'elle est détectée :
+État final après le script :
+  wlan0  → Hotspot "R2D2_Control"  192.168.4.1   (Slave + télécommande)
+  wlan1  → ton WiFi maison          DHCP          (git pull / GitHub)
+```
+
+### 2.1 — Brancher la clé USB WiFi (wlan1)
+
+Brancher la clé USB WiFi sur un port USB **avant** de lancer le script.
+
+Vérifier qu'elle apparaît :
 ```bash
 ip link show
-# Doit afficher wlan0 et wlan1
+# doit afficher wlan0  ET  wlan1
 ```
 
-### 2.2 — Configurer wlan1 sur le réseau domestique
+> Si la clé n'est pas encore disponible, le script la configure quand même.
+> Elle se connectera automatiquement au premier branchement.
 
-Éditer `/etc/wpa_supplicant/wpa_supplicant-wlan1.conf` :
-```bash
-sudo nano /etc/wpa_supplicant/wpa_supplicant-wlan1.conf
-```
-```
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-country=CA
-
-network={
-    ssid="TON_WIFI_MAISON"
-    psk="TON_MOT_DE_PASSE"
-}
-```
-```bash
-sudo chmod 600 /etc/wpa_supplicant/wpa_supplicant-wlan1.conf
-sudo systemctl enable wpa_supplicant@wlan1
-sudo systemctl start wpa_supplicant@wlan1
-```
-
-### 2.3 — Lancer le script hotspot
+### 2.2 — Lancer le script de configuration réseau
 
 ```bash
-cd /home/artoo/r2d2
-sudo bash scripts/setup_hotspot.sh
+sudo bash /home/artoo/r2d2/scripts/setup_master_network.sh
 ```
 
 Le script :
-- Installe `hostapd` + `dnsmasq`
-- Configure `wlan0` en mode AP (SSID: `R2D2_Control`, clé: `r2d2droid`)
-- Configure DHCP 192.168.4.2–20
-- Active le routage IP (NAT wlan1→wlan0)
+1. **Lit** le SSID et mot de passe du WiFi maison depuis NetworkManager
+2. **Confirme** avec toi (ou te permet de saisir manuellement si non détecté)
+3. **Sauvegarde** dans `master/config/local.cfg` → section `[home_wifi]`
+4. **Configure wlan1** avec ces credentials (connexion automatique)
+5. **Convertit wlan0** en hotspot `R2D2_Control` (IP fixe 192.168.4.1)
+6. Active **avahi-daemon** pour la résolution `.local`
 
 ```bash
 sudo reboot
 ```
 
-### 2.4 — Vérification hotspot
+### 2.3 — Vérification après reboot
 
 ```bash
-# Après reboot, depuis ton PC connecté au hotspot R2D2_Control :
-ping 192.168.4.1      # doit répondre (R2-Master)
+# Depuis ton PC connecté au hotspot "R2D2_Control" :
+ping 192.168.4.1          # R2-Master répond ✓
+
+# Vérifier que wlan1 est connecté à internet :
+ssh artoo@192.168.4.1
+ping -I wlan1 8.8.8.8     # internet via wlan1 ✓
+
+# Vérifier la config réseau :
+nmcli device status
+# wlan0  wifi  connecté  r2d2-hotspot
+# wlan1  wifi  connecté  r2d2-internet
 ```
+
+### 2.4 — Vérifier local.cfg
+
+```bash
+cat /home/artoo/r2d2/master/config/local.cfg
+# Doit contenir :
+# [home_wifi]
+# ssid = TON_WIFI_MAISON
+# password = ***
+```
+
+> `local.cfg` est **gitignored** — il ne sera jamais écrasé par un `git pull`.
+> Si tu changes de WiFi maison, éditer manuellement cette section et relancer
+> `nmcli connection modify r2d2-internet wifi-sec.psk "NOUVEAU_MOT_DE_PASSE"`
 
 ---
 

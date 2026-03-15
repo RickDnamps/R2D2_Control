@@ -18,9 +18,16 @@ branch = main
 # Pull automatique au boot du Master (si wlan1 disponible)
 auto_pull_on_boot = true
 
+[home_wifi]
+# Credentials du WiFi maison (réseau internet)
+# Rempli automatiquement par scripts/setup_master_network.sh
+# Utilisé pour configurer wlan1 (clé USB WiFi externe → git pull)
+ssid = TON_WIFI_MAISON
+password = TON_MOT_DE_PASSE
+
 [hotspot]
-# SSID et mot de passe du point d'accès Wi-Fi du Master
-# Modifier ici après setup_hotspot.sh si tu veux personnaliser
+# SSID et mot de passe du point d'accès Wi-Fi du Master (wlan0)
+# Le Slave et ta télécommande se connectent ici
 ssid = R2D2_Control
 password = r2d2droid
 
