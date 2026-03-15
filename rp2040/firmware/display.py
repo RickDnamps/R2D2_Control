@@ -4,8 +4,16 @@ Dessine les différents états de l'interface R2-D2.
 """
 
 import gc9a01
-import framebuf
 import math
+
+# Font pour tft.text() — driver russhughes nécessite un module font
+try:
+    import vga1_8x16 as _font
+except ImportError:
+    try:
+        import vga1_8x8 as _font
+    except ImportError:
+        _font = None
 
 # Couleurs RGB565
 BLACK   = gc9a01.color565(0,   0,   0)
@@ -24,6 +32,14 @@ RADIUS   = 120
 
 def _clear(tft, color):
     tft.fill(color)
+
+
+def _text(tft, txt, x, y, color):
+    """Texte compatible driver russhughes (nécessite font module) et framebuf."""
+    if _font is not None:
+        tft.text(_font, txt, x, y, color)
+    else:
+        tft.text(txt, x, y, color)
 
 
 def _fill_circle(tft, cx, cy, r, color):
@@ -47,8 +63,8 @@ def draw_boot(tft):
     tft.fill_rect(CENTER_X - 30, CENTER_Y + 50, 60, 45, WHITE)
     tft.fill_rect(CENTER_X - 24, CENTER_Y + 56, 48, 33, BLACK)
     # Texte
-    tft.text("R2-D2", CENTER_X - 25, CENTER_Y + 100, WHITE)
-    tft.text("BOOT...", CENTER_X - 28, CENTER_Y + 115, GRAY)
+    _text(tft, "R2-D2",  CENTER_X - 25, CENTER_Y + 100, WHITE)
+    _text(tft, "BOOT...", CENTER_X - 28, CENTER_Y + 115, GRAY)
 
 
 def draw_syncing(tft, version: str, spinner_step: int = 0):
@@ -63,8 +79,8 @@ def draw_syncing(tft, version: str, spinner_step: int = 0):
         alpha = int(255 * (i / steps))
         color = gc9a01.color565(255, max(0, alpha // 2), 0)
         _fill_circle(tft, x, y, 8, color)
-    tft.text("SYNCING", CENTER_X - 30, CENTER_Y - 10, ORANGE)
-    tft.text(version[:10], CENTER_X - 30, CENTER_Y + 10, WHITE)
+    _text(tft, "SYNCING",    CENTER_X - 30, CENTER_Y - 10, ORANGE)
+    _text(tft, version[:10], CENTER_X - 30, CENTER_Y + 10, WHITE)
 
 
 def draw_ok(tft, version: str):
@@ -75,29 +91,28 @@ def draw_ok(tft, version: str):
     # Coche simplifiée
     tft.line(CENTER_X - 20, CENTER_Y - 20, CENTER_X - 5, CENTER_Y - 5, WHITE)
     tft.line(CENTER_X - 5, CENTER_Y - 5, CENTER_X + 25, CENTER_Y - 40, WHITE)
-    tft.text("OK", CENTER_X - 10, CENTER_Y + 45, GREEN)
-    tft.text(version[:10], CENTER_X - 30, CENTER_Y + 65, GRAY)
+    _text(tft, "OK",         CENTER_X - 10, CENTER_Y + 45, GREEN)
+    _text(tft, version[:10], CENTER_X - 30, CENTER_Y + 65, GRAY)
 
 
 def draw_error(tft, reason: str):
     """Alerte bloquante rouge."""
     _clear(tft, BLACK)
     _fill_circle(tft, CENTER_X, CENTER_Y - 20, 50, RED)
-    tft.text("!", CENTER_X - 5, CENTER_Y - 35, WHITE)
-    tft.text("ERREUR", CENTER_X - 27, CENTER_Y + 45, RED)
-    # Affichage reason sur 2 lignes si besoin
+    _text(tft, "!",      CENTER_X - 5,  CENTER_Y - 35, WHITE)
+    _text(tft, "ERREUR", CENTER_X - 27, CENTER_Y + 45, RED)
     r = reason[:10]
-    tft.text(r, CENTER_X - len(r) * 4, CENTER_Y + 65, WHITE)
+    _text(tft, r, CENTER_X - len(r) * 4, CENTER_Y + 65, WHITE)
     if len(reason) > 10:
         r2 = reason[10:20]
-        tft.text(r2, CENTER_X - len(r2) * 4, CENTER_Y + 80, WHITE)
+        _text(tft, r2, CENTER_X - len(r2) * 4, CENTER_Y + 80, WHITE)
 
 
 def draw_telemetry(tft, voltage: float, temp: float):
     """Jauge batterie + température. Fond bleu."""
     _clear(tft, BLACK)
     # Titre
-    tft.text("TELEMETRY", CENTER_X - 38, 30, BLUE)
+    _text(tft, "TELEMETRY", CENTER_X - 38, 30, BLUE)
 
     # Jauge batterie (0-29.4V = 0-100%)
     v_pct = max(0.0, min(1.0, (voltage - 20.0) / (29.4 - 20.0)))
@@ -105,8 +120,8 @@ def draw_telemetry(tft, voltage: float, temp: float):
     tft.fill_rect(CENTER_X - 80, CENTER_Y - 30, 160, 25, GRAY)
     bar_color = GREEN if v_pct > 0.3 else (ORANGE if v_pct > 0.15 else RED)
     tft.fill_rect(CENTER_X - 80, CENTER_Y - 30, bar_w, 25, bar_color)
-    tft.text(f"{voltage:.1f}V", CENTER_X - 20, CENTER_Y - 50, WHITE)
+    _text(tft, "{:.1f}V".format(voltage), CENTER_X - 20, CENTER_Y - 50, WHITE)
 
     # Température
     temp_color = GREEN if temp < 60 else (ORANGE if temp < 75 else RED)
-    tft.text(f"TEMP: {temp:.0f}C", CENTER_X - 38, CENTER_Y + 20, temp_color)
+    _text(tft, "TEMP: {:.0f}C".format(temp), CENTER_X - 38, CENTER_Y + 20, temp_color)

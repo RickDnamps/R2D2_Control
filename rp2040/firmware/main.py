@@ -46,6 +46,7 @@ INT_PIN  = Pin(17, Pin.IN)  # CST816S interrupt
 # Init hardware
 # ------------------------------------------------------------------
 def init_display():
+    TFT_BL.value(1)  # allumer le backlight avant init
     spi = SPI(1, baudrate=40_000_000, sck=TFT_SCK, mosi=TFT_MOSI)
     tft = gc9a01.GC9A01(spi, 240, 240, dc=TFT_DC, cs=TFT_CS, reset=TFT_RST, backlight=TFT_BL)
     tft.init()
