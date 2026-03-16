@@ -50,10 +50,6 @@ class DisplayDriver(BaseDriver):
     # Séquence de boot diagnostic
     # ------------------------------------------------------------------
 
-    def boot(self) -> bool:
-        """Splash initial R2-D2."""
-        return self._send("DISP:BOOT")
-
     def boot_start(self) -> bool:
         """Démarre la séquence de diagnostic — reset tous les items."""
         return self._send("DISP:BOOT:START")
@@ -87,9 +83,7 @@ class DisplayDriver(BaseDriver):
         return self._send("DISP:OK")
 
     def syncing(self, version: str = "") -> bool:
-        """Synchronisation en cours."""
-        if version:
-            return self._send(f"DISP:SYNCING:{version}")
+        """Synchronisation version en cours — reste sur l'écran de diagnostic."""
         return self._send("DISP:SYNCING")
 
     def error(self, code: str) -> bool:
