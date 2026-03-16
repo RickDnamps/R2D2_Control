@@ -149,7 +149,10 @@ def on_hold(x, y):
 # ------------------------------------------------------------------
 def main():
     tft   = init_display()
-    touch = init_touch()
+    try:
+        touch = init_touch()
+    except Exception:
+        touch = None
 
     touch.on('swipe_left',  on_swipe_left)
     touch.on('swipe_right', on_swipe_right)
@@ -165,7 +168,8 @@ def main():
         # quand le Slave sera connecté via USB
 
         # Touch polling
-        touch.poll()
+        if touch:
+            touch.poll()
 
         # Refresh affichage
         now = time.ticks_ms()

@@ -35,11 +35,13 @@ def _clear(tft, color):
 
 
 def _text(tft, txt, x, y, color):
-    """Texte compatible driver russhughes (nécessite font module) et framebuf."""
+    """Texte compatible driver russhughes (nécessite font module)."""
     if _font is not None:
-        tft.text(_font, txt, x, y, color)
-    else:
-        tft.text(txt, x, y, color)
+        try:
+            tft.text(_font, txt, x, y, color)
+        except Exception:
+            pass
+    # Si pas de font disponible — texte ignoré silencieusement
 
 
 def _fill_circle(tft, cx, cy, r, color):
