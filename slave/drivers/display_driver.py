@@ -46,32 +46,67 @@ class DisplayDriver(BaseDriver):
     # Commandes d'état
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Séquence de boot diagnostic
+    # ------------------------------------------------------------------
+
     def boot(self) -> bool:
-        """Affiche l'écran de boot (splash R2-D2, fond blanc)."""
+        """Splash initial R2-D2."""
         return self._send("DISP:BOOT")
 
-    def syncing(self, version: str = "") -> bool:
-        """Spinner de synchronisation + versions (fond orange)."""
+    def boot_start(self) -> bool:
+        """Démarre la séquence de diagnostic — reset tous les items."""
+        return self._send("DISP:BOOT:START")
+
+    def boot_item(self, name: str) -> bool:
+        """Item 'name' en cours de démarrage (orange)."""
+        return self._send(f"DISP:BOOT:ITEM:{name}")
+
+    def boot_ok(self, name: str) -> bool:
+        """Item 'name' démarré avec succès (vert)."""
+        return self._send(f"DISP:BOOT:OK:{name}")
+
+    def boot_fail(self, name: str) -> bool:
+        """Item 'name' en erreur (rouge)."""
+        return self._send(f"DISP:BOOT:FAIL:{name}")
+
+    def ready(self, version: str = "") -> bool:
+        """Tout OK — affiche écran vert OPÉRATIONNEL 3s puis PRÊT."""
         if version:
-            return self._send(f"DISP:SYNCING:{version}")
-        return self._send("DISP:SYNCING")
+            return self._send(f"DISP:READY:{version}")
+        return self._send("DISP:READY")
+
+    # ------------------------------------------------------------------
+    # États opérationnels
+    # ------------------------------------------------------------------
 
     def ok(self, version: str = "") -> bool:
-        """Validation OK — libère vers écran principal (fond vert)."""
+        """Écran opérationnel normal (bordure verte)."""
         if version:
             return self._send(f"DISP:OK:{version}")
         return self._send("DISP:OK")
 
-    def error(self, reason: str) -> bool:
-        """Alerte bloquante (fond rouge)."""
-        return self._send(f"DISP:ERROR:{reason}")
+    def syncing(self, version: str = "") -> bool:
+        """Synchronisation en cours."""
+        if version:
+            return self._send(f"DISP:SYNCING:{version}")
+        return self._send("DISP:SYNCING")
+
+    def error(self, code: str) -> bool:
+        """
+        Erreur avec code lisible (bordure rouge).
+        Codes: MASTER_OFFLINE, VESC_TEMP_HIGH, VESC_FAULT, BATTERY_LOW,
+               UART_ERROR, SYNC_FAILED, WATCHDOG, AUDIO_FAIL,
+               SERVO_FAIL, VESC_L_FAIL, VESC_R_FAIL, I2C_ERROR
+        """
+        return self._send(f"DISP:ERROR:{code}")
 
     def telemetry(self, voltage: float, temp: float) -> bool:
-        """Jauge batterie + température (fond bleu)."""
+        """Jauge batterie + température."""
         return self._send(f"DISP:TELEM:{voltage:.1f}V:{temp:.0f}C")
 
     def send_raw(self, cmd: str) -> bool:
-        """Envoie une commande brute au RP2040 (ex: commande DISP: transférée via UART)."""
+        """Commande brute (ex: DISP: transférée depuis UART Master)."""
         return self._send(cmd)
 
     # ------------------------------------------------------------------
