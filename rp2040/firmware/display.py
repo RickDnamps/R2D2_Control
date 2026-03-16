@@ -34,29 +34,29 @@ _font = _font8 if _font8 is not None else _font16
 
 # Messages d'erreur lisibles
 ERROR_MESSAGES = {
-    'MASTER_OFFLINE': ('Master',    'hors ligne'),
-    'VESC_TEMP_HIGH': ('VESC',      'surchauffe!'),
-    'VESC_FAULT':     ('Erreur',    'VESC'),
-    'BATTERY_LOW':    ('Batterie',  'faible!'),
-    'UART_ERROR':     ('Erreur',    'UART'),
-    'SYNC_FAILED':    ('Sync',      'echouee'),
-    'WATCHDOG':       ('Watchdog',  'declenche'),
-    'AUDIO_FAIL':     ('Audio',     'erreur'),
-    'SERVO_FAIL':     ('Servos',    'erreur'),
-    'VESC_L_FAIL':    ('VESC G',    'erreur'),
-    'VESC_R_FAIL':    ('VESC D',    'erreur'),
-    'I2C_ERROR':      ('I2C',       'erreur'),
+    'MASTER_OFFLINE': ('Master',   'offline'),
+    'VESC_TEMP_HIGH': ('VESC',     'overheat!'),
+    'VESC_FAULT':     ('VESC',     'fault'),
+    'BATTERY_LOW':    ('Battery',  'low!'),
+    'UART_ERROR':     ('UART',     'error'),
+    'SYNC_FAILED':    ('Sync',     'failed'),
+    'WATCHDOG':       ('Watchdog', 'triggered'),
+    'AUDIO_FAIL':     ('Audio',    'error'),
+    'SERVO_FAIL':     ('Servos',   'error'),
+    'VESC_L_FAIL':    ('VESC L',   'error'),
+    'VESC_R_FAIL':    ('VESC R',   'error'),
+    'I2C_ERROR':      ('I2C',      'error'),
 }
 
 # Labels courts des items de boot (max ~11 chars pour tenir sur 1 ligne)
 # Ordre = ordre d'affichage sur l'ecran
 BOOT_LABELS = {
-    'UART':   'UART MASTER',   # UART /dev/ttyAMA0 → slipring → Master
-    'VESC_G': 'VESC GAUCHE',   # FSESC /dev/ttyACM0 — propulsion gauche
-    'VESC_D': 'VESC DROITE',   # FSESC /dev/ttyACM1 — propulsion droite
-    'DOME':   'MOTEUR DOME',   # Motor Driver HAT I2C 0x40 — rotation dome
-    'SERVOS': 'SERVOS BODY',   # PCA9685 I2C 0x41 — panneaux + bras
-    'AUDIO':  'AUDIO',         # Jack 3.5mm natif — sons MP3
+    'UART':   'UART MASTER',   # UART /dev/ttyAMA0 slipring → Master
+    'VESC_G': 'VESC LEFT',     # FSESC /dev/ttyACM0 — left drive
+    'VESC_D': 'VESC RIGHT',    # FSESC /dev/ttyACM1 — right drive
+    'DOME':   'DOME MOTOR',    # Motor Driver HAT I2C 0x40 — dome rotation
+    'SERVOS': 'SERVOS BODY',   # PCA9685 I2C 0x41 — panels + arms
+    'AUDIO':  'AUDIO',         # 3.5mm jack — MP3 sounds
 }
 
 # Textes de statut par etat
@@ -64,7 +64,7 @@ STATUS_TEXT = {
     'pending':  'STANDBY',
     'progress': 'CHECKING',
     'ok':       'OK',
-    'fail':     'ERREUR',
+    'fail':     'ERROR',
 }
 
 STATUS_COLOR = {
@@ -155,17 +155,17 @@ def draw_boot_progress(tft, items):
     all_ok       = all(s == 'ok'       for s in statuses)
 
     if has_fail:
-        ring_color   = RED
-        state_line   = 'ERREUR DIAGNOSTIC'
-        global_text  = "ERREUR D'AMORCAGE"
+        ring_color  = RED
+        state_line  = 'BOOT ERROR'
+        global_text = 'BOOT FAILED'
     elif all_ok:
-        ring_color   = GREEN
-        state_line   = 'OK'
-        global_text  = 'AMORCAGE TERMINE'
+        ring_color  = GREEN
+        state_line  = 'OK'
+        global_text = 'BOOT COMPLETE'
     else:
-        ring_color   = ORANGE
-        state_line   = 'EN COURS'
-        global_text  = 'AMORCAGE EN COURS'
+        ring_color  = ORANGE
+        state_line  = 'IN PROGRESS'
+        global_text = 'BOOTING...'
 
     tft.fill(BLACK)
     _draw_ring(tft, CENTER_X, CENTER_Y, 115, 8, ring_color)
@@ -217,7 +217,7 @@ def draw_operational(tft, version):
     # Gros checkmark simple
     tft.fill_rect(CENTER_X - 38, CENTER_Y - 10, 76, 12, GREEN)
     tft.fill_rect(CENTER_X - 38, CENTER_Y + 2,  76, 12, GREEN)
-    _text_center(tft, 'OPERATIONNEL', CENTER_Y + 28, GREEN)
+    _text_center(tft, 'OPERATIONAL', CENTER_Y + 28, GREEN)
     if version:
         _text_center(tft, version[:14], CENTER_Y + 42, GRAY)
 
@@ -230,7 +230,7 @@ def draw_ok(tft, version):
     _text_center(tft, 'OK',            58, GREEN)
     tft.fill_rect(CENTER_X - 40, CENTER_Y - 14, 80, 12, GREEN)
     tft.fill_rect(CENTER_X - 40, CENTER_Y +  2, 80, 12, GREEN)
-    _text_center(tft, 'PRET', CENTER_Y + 24, GREEN)
+    _text_center(tft, 'READY', CENTER_Y + 24, GREEN)
     if version:
         _text_center(tft, version[:14], CENTER_Y + 38, GRAY)
 
@@ -239,17 +239,17 @@ def draw_error(tft, code):
     """Ecran erreur — bordure rouge epaisse + description lisible."""
     tft.fill(BLACK)
     _draw_ring(tft, CENTER_X, CENTER_Y, 115, 8, RED)
-    _text_center(tft, 'SYSTEM STATUS:',    40, RED)
-    _text_center(tft, 'ERREUR CRITIQUE',   52, RED)
-    # Point d'exclamation
+    _text_center(tft, 'SYSTEM STATUS:', 40, RED)
+    _text_center(tft, 'CRITICAL ERROR', 52, RED)
+    # Exclamation mark
     tft.fill_rect(CENTER_X - 6, CENTER_Y - 50, 12, 30, RED)
     tft.fill_rect(CENTER_X - 6, CENTER_Y - 12, 12, 12, RED)
-    # Message lisible
-    msg = ERROR_MESSAGES.get(code, ('Erreur', code[:10]))
+    # Human-readable message
+    msg = ERROR_MESSAGES.get(code, ('Error', code[:10]))
     _text_center(tft, msg[0], CENTER_Y + 20, RED)
     _text_center(tft, msg[1], CENTER_Y + 32, WHITE)
-    _text_center(tft, 'GLOBAL STATUS:',    CENTER_Y + 50, GRAY)
-    _text_center(tft, "ERREUR D'AMORCAGE", CENTER_Y + 62, RED)
+    _text_center(tft, 'GLOBAL STATUS:', CENTER_Y + 50, GRAY)
+    _text_center(tft, 'BOOT FAILED',   CENTER_Y + 62, RED)
 
 
 def draw_telemetry(tft, voltage, temp):
