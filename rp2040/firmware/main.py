@@ -158,7 +158,7 @@ def main():
 
     buf   = ""
     last_draw = time.ticks_ms()
-    REFRESH_MS = 200  # refresh spinner toutes les 200ms
+    REFRESH_MS = 1000  # refresh toutes les 1s (évite tearing avec fallback circles)
 
     while True:
         # Lecture commandes USB serial — non-bloquant via buffer.any()
