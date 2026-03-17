@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Background -->
+    <path
+        android:fillColor="#080c14"
+        android:pathData="M0,0h108v108h-108z"/>
+
+    <!-- Dome (semi-circle top half) -->
+    <path
+        android:fillColor="#00aaff"
+        android:pathData="M24,52 A30,30 0 0 1 84,52 L84,52 L24,52 Z"/>
+
+    <!-- Body rectangle -->
+    <path
+        android:fillColor="#00aaff"
+        android:pathData="M30,54 L78,54 L78,82 L30,82 Z"/>
+
+    <!-- Main eye (hollow circle on dome) -->
+    <path
+        android:fillColor="#080c14"
+        android:pathData="M54,34 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0"/>
+
+    <!-- Eye ring -->
+    <path
+        android:strokeColor="#00ffea"
+        android:strokeWidth="2"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,34 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0"/>
+
+    <!-- Left PSI indicator (small circle on dome) -->
+    <path
+        android:fillColor="#00ffea"
+        android:pathData="M34,44 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0"/>
+
+    <!-- Right PSI indicator -->
+    <path
+        android:fillColor="#00ffea"
+        android:pathData="M74,44 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0"/>
+
+    <!-- Body center panel (slightly darker) -->
+    <path
+        android:fillColor="#0080c0"
+        android:pathData="M42,62 L66,62 L66,76 L42,76 Z"/>
+
+    <!-- Body indicator lights -->
+    <path
+        android:fillColor="#00ffea"
+        android:pathData="M35,70 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"/>
+    <path
+        android:fillColor="#00aaff"
+        android:pathData="M43,70 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"/>
+
+    <!-- Left leg -->
+    <path
+        android:fillColor="#00aaff"
+        android:pathData="M26,84 L38,84 L38,98 L26,98 Z"/>
+
+    <!-- Right leg -->
+    <path
+        android:fillColor="#00aaff"
+        android:pathData="M70,84 L82,84 L82,98 L70,98 Z"/>
+
+    <!-- Left foot (slightly wider) -->
+    <path
+        android:fillColor="#0088cc"
+        android:pathData="M22,98 L42,98 L42,104 L22,104 Z"/>
+
+    <!-- Right foot -->
+    <path
+        android:fillColor="#0088cc"
+        android:pathData="M66,98 L86,98 L86,104 L66,104 Z"/>
+
+</vector>

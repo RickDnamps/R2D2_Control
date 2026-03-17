@@ -1,0 +1,21 @@
+{
+  "name": "R2-D2 Control System",
+  "short_name": "R2-D2",
+  "description": "Système de contrôle R2-D2 — dashboard complet",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#080c14",
+  "theme_color": "#00aaff",
+  "lang": "fr",
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["utilities", "tools"],
+  "shortcuts": [
+    { "name": "DRIVE", "short_name": "Drive", "description": "Contrôle propulsion", "url": "/?tab=drive" },
+    { "name": "AUDIO", "short_name": "Audio", "description": "Sons R2-D2", "url": "/?tab=audio" }
+  ]
+}

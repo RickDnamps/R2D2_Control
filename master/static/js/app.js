@@ -183,6 +183,13 @@ class VirtualJoystick {
     this.knob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
     this.onMove(this.x, this.y);
 
+    // Android haptic feedback — light vibration when joystick moves significantly
+    const nx = this.x;
+    const ny = this.y;
+    if (window.AndroidBridge && Math.abs(nx) + Math.abs(ny) > 0.1) {
+      window.AndroidBridge.vibrate(20);
+    }
+
     // Update value displays
     if (this._valXId) {
       const vx = el(this._valXId);

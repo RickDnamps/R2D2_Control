@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>R2-D2 Control System</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  <!-- PWA -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#00aaff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="R2-D2">
+  <meta name="mobile-web-app-capable" content="yes">
 </head>
 <body>
 
@@ -465,5 +472,12 @@
 <div id="toast" class="toast"></div>
 
 <script src="/static/js/app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js')
+      .then(r => console.log('SW registered'))
+      .catch(e => console.log('SW error:', e));
+  }
+</script>
 </body>
 </html>
