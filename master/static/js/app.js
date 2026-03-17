@@ -484,16 +484,32 @@ const servoPanel = new ServoPanel();
 class AudioBoard {
   constructor() {
     this._currentCat = null;
-    this._playing = false;
+    this._playing    = false;
     this._ICONS = {
-      alarm:'🚨', happy:'😄', hum:'🎵', misc:'🎲', proc:'⚙', quote:'💬',
-      razz:'🤪', sad:'😢', sent:'🤔', ooh:'😲', whistle:'🎶', scream:'😱', special:'⭐'
+      alarm:'🚨', happy:'😄', hum:'🎵', misc:'🎲', proc:'⚙️', quote:'💬',
+      razz:'🤪', sad:'😢', sent:'🤔', ooh:'😲', whistle:'🎶', scream:'😱',
+      special:'⭐', sent:'🗣️'
     };
     this._CAT_COLORS = {
-      alarm:'#ff2244', happy:'#ffee00', hum:'#00aaff', misc:'#8844ff',
-      proc:'#00ffea', quote:'#ff8800', razz:'#ff44aa', sad:'#4488ff',
-      sent:'#00cc66', ooh:'#ff6600', whistle:'#44ffaa', scream:'#ff0066', special:'#ffcc00'
+      alarm:'#ff2244',  happy:'#ffcc00',  hum:'#00aaff',  misc:'#aa44ff',
+      proc:'#00ffea',   quote:'#ff8800',  razz:'#ff44cc',  sad:'#4499ff',
+      sent:'#00cc66',   ooh:'#ff6600',    whistle:'#44ffbb', scream:'#ff0055',
+      special:'#ffaa00'
     };
+    // Noms d'affichage propres pour chaque catégorie
+    this._CAT_LABELS = {
+      alarm:'Alarm',    happy:'Happy',    hum:'Hum',       misc:'Misc',
+      proc:'Process',   quote:'Quote',    razz:'Razz',     sad:'Sad',
+      sent:'Sentiment', ooh:'Ooh',        whistle:'Whistle', scream:'Scream',
+      special:'Special'
+    };
+  }
+
+  // Formate un nom de fichier pour l'affichage
+  // "Happy001" → "001"  |  "Cantina" → "Cantina"
+  _formatSound(filename) {
+    const m = filename.match(/^[A-Za-z_]+?(\d+)$/);
+    return m ? m[1].replace(/^0+/, '') || '1' : filename;
   }
 
   async loadCategories() {
@@ -502,66 +518,103 @@ class AudioBoard {
     const wrap = el('audio-categories');
     if (!wrap) return;
 
-    wrap.innerHTML = Object.entries(data.categories).map(([cat, count]) => {
-      const color = this._CAT_COLORS[cat] || '#00aaff';
+    // Accepte les deux formats : [{name, count}] ou {name: count}
+    const cats = Array.isArray(data.categories)
+      ? data.categories
+      : Object.entries(data.categories).map(([name, count]) => ({ name, count }));
+
+    wrap.innerHTML = cats.map(({ name, count }) => {
+      const color = this._CAT_COLORS[name] || '#00aaff';
+      const label = this._CAT_LABELS[name] || name.charAt(0).toUpperCase() + name.slice(1);
+      const icon  = this._ICONS[name] || '🔊';
       return `
-        <div class="category-pill" id="cat-pill-${cat}"
-             onclick="audioBoard.selectCategory('${cat}')"
+        <div class="category-pill" id="cat-pill-${name}"
+             onclick="audioBoard.selectCategory('${name}')"
              style="--cat-color:${color}">
-          ${this._ICONS[cat] || '🔊'} ${cat.toUpperCase()}
+          <span class="cat-icon">${icon}</span>
+          <span class="cat-label">${label}</span>
           <span class="cat-count">${count}</span>
-        </div>
-      `;
+        </div>`;
     }).join('');
+
+    // Sélectionner la première catégorie par défaut
+    if (cats.length > 0) this.selectCategory(cats[0].name);
   }
 
   async selectCategory(cat) {
     this._currentCat = cat;
+
+    // Marquer la pill active
     document.querySelectorAll('.category-pill').forEach(p => p.classList.remove('active'));
     const pill = el(`cat-pill-${cat}`);
-    if (pill) pill.classList.add('active');
+    if (pill) {
+      pill.classList.add('active');
+      pill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
 
+    // Mettre à jour le titre de la section sons
+    const label = this._CAT_LABELS[cat] || cat.toUpperCase();
+    const color = this._CAT_COLORS[cat] || '#00aaff';
     const nameEl = el('audio-cat-name');
-    if (nameEl) nameEl.textContent = cat.toUpperCase();
+    if (nameEl) {
+      nameEl.textContent = label;
+      nameEl.style.color  = color;
+    }
 
-    // Load sounds for this category
-    const data = await api(`/audio/sounds?category=${cat}`);
+    // Afficher le spinner pendant le chargement
     const grid = el('audio-sounds-grid');
     if (!grid) return;
+    grid.innerHTML = '<div class="sounds-loading">Chargement...</div>';
+
+    const data = await api(`/audio/sounds?category=${cat}`);
 
     if (data && data.sounds && data.sounds.length > 0) {
-      grid.innerHTML = data.sounds.map(s => `
-        <button class="sound-btn" onclick="audioBoard.play('${escapeHtml(s)}')">${escapeHtml(s)}</button>
-      `).join('');
+      // Bouton RANDOM en premier
+      const randomBtn = `
+        <button class="sound-btn sound-btn-random"
+                onclick="audioBoard.playRandom('${cat}')"
+                title="Son aléatoire de ${label}">
+          🎲 RANDOM
+        </button>`;
+
+      const soundBtns = data.sounds.map(s => {
+        const display = this._formatSound(s);
+        return `<button class="sound-btn"
+                  onclick="audioBoard.play('${escapeHtml(s)}')"
+                  title="${escapeHtml(s)}">
+                  ${escapeHtml(display)}
+                </button>`;
+      }).join('');
+
+      grid.innerHTML = randomBtn + soundBtns;
     } else {
-      // Fallback: play random from category
       grid.innerHTML = `
-        <button class="sound-btn" onclick="audioBoard.playRandom('${cat}')">
-          RANDOM from ${cat}
-        </button>
-      `;
+        <button class="sound-btn sound-btn-random" onclick="audioBoard.playRandom('${cat}')">
+          🎲 RANDOM ${label}
+        </button>`;
     }
   }
 
   play(sound) {
     api('/audio/play', 'POST', { sound }).then(d => {
-      if (d) {
-        this.setPlaying(true, sound);
-      }
+      if (d && d.ok !== false) this.setPlaying(true, sound);
     });
   }
 
   playRandom(cat) {
     const c = cat || this._currentCat || 'happy';
     api('/audio/random', 'POST', { category: c }).then(d => {
-      if (d) this.setPlaying(true, `RANDOM:${c}`);
+      if (d) {
+        const label = this._CAT_LABELS[c] || c;
+        this.setPlaying(true, `🎲 ${label}`);
+      }
     });
   }
 
-  setPlaying(active, name = 'IDLE') {
+  setPlaying(active, name = '') {
     this._playing = active;
     const waveform = el('waveform');
-    const text = el('now-playing-text');
+    const text     = el('now-playing-text');
     if (waveform) waveform.classList.toggle('playing', active);
     if (text) text.textContent = active ? name : 'IDLE';
   }

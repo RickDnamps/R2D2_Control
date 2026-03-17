@@ -616,38 +616,47 @@ body::after {
 }
 
 .category-pill {
-  padding: 6px 14px;
-  border-radius: 20px;
+  padding: 8px 16px;
+  border-radius: 24px;
   border: 1px solid var(--border);
   background: rgba(10, 20, 40, 0.7);
   color: var(--text-dim);
   cursor: pointer;
   font-family: var(--font);
-  font-size: 11px;
-  letter-spacing: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
   transition: all 0.2s;
   touch-action: manipulation;
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+  border-left: 3px solid var(--cat-color, var(--border));
+}
+.category-pill .cat-icon  { font-size: 14px; line-height: 1; }
+.category-pill .cat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+.category-pill .cat-count {
+  font-size: 9px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 1px 6px;
+  opacity: 0.7;
 }
 
 .category-pill:hover {
-  border-color: var(--blue);
-  color: var(--blue);
-  box-shadow: 0 0 8px rgba(0,170,255,0.2);
+  border-color: var(--cat-color, var(--blue));
+  color: var(--cat-color, var(--blue));
+  background: rgba(255,255,255,0.05);
+  box-shadow: 0 0 8px rgba(0,170,255,0.15);
 }
 
 .category-pill.active {
-  background: rgba(0,170,255,0.15);
-  border-color: var(--blue);
-  color: var(--blue);
-  box-shadow: 0 0 10px rgba(0,170,255,0.3);
-}
-
-.category-pill .cat-count {
-  font-size: 9px;
-  opacity: 0.6;
+  background: rgba(0,170,255,0.12);
+  border-color: var(--cat-color, var(--blue));
+  border-left-color: var(--cat-color, var(--blue));
+  color: var(--cat-color, var(--blue));
+  box-shadow: 0 0 12px rgba(0,170,255,0.25);
 }
 
 .audio-sounds-wrap {
@@ -658,23 +667,32 @@ body::after {
   scrollbar-color: var(--border) transparent;
 }
 
+.audio-sounds-wrap h4 {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin: 0 0 8px 0;
+}
+.audio-sounds-wrap h4 span { color: inherit; }
+
 .audio-sounds-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .sound-btn {
-  padding: 8px 10px;
+  padding: 10px 6px;
   background: rgba(10, 20, 40, 0.7);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
   cursor: pointer;
   font-family: var(--font);
-  font-size: 10px;
-  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
   transition: all 0.15s;
   touch-action: manipulation;
   overflow: hidden;
@@ -683,13 +701,39 @@ body::after {
 }
 
 .sound-btn:hover {
-  background: var(--bg-hover);
+  background: rgba(0,170,255,0.1);
   border-color: var(--blue);
   color: var(--blue);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,170,255,0.2);
 }
 
 .sound-btn:active {
-  background: rgba(0,170,255,0.2);
+  transform: translateY(0);
+  background: rgba(0,170,255,0.25);
+}
+
+/* Bouton RANDOM plus visible */
+.sound-btn-random {
+  grid-column: 1 / -1;
+  background: rgba(255, 170, 0, 0.08);
+  border-color: rgba(255, 170, 0, 0.3);
+  color: #ffaa00;
+  font-size: 12px;
+  padding: 10px;
+}
+.sound-btn-random:hover {
+  background: rgba(255, 170, 0, 0.18);
+  border-color: #ffaa00;
+  color: #ffaa00;
+}
+
+.sounds-loading {
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 16px;
+  text-align: center;
+  letter-spacing: 2px;
 }
 
 .audio-empty {
