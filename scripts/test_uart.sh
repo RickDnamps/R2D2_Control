@@ -22,7 +22,7 @@ ssh $SLAVE "> /tmp/slave.log"
 echo "OK"
 
 echo "=== Démarrage Slave ==="
-ssh $SLAVE "cd $REPO && python3 -m slave.main >> /tmp/slave.log 2>&1 </dev/null &"
+ssh -n $SLAVE "cd $REPO && python3 -m slave.main >> /tmp/slave.log 2>&1 &"
 sleep 2
 
 echo "=== Démarrage Master ==="
