@@ -14,8 +14,10 @@ Séquence de boot:
 
 import logging
 import signal
+import subprocess
 import sys
 import os
+import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -61,10 +63,12 @@ def resume_vesc() -> None:
 
 
 def handle_reboot(value: str) -> None:
-    """Commande REBOOT reçue du Master."""
+    """Commande REBOOT reçue du Master — exécuté dans un thread pour ne pas bloquer l'UART."""
     logging.getLogger(__name__).info("Commande REBOOT reçue — reboot dans 3s")
-    time.sleep(3)
-    os.system("sudo reboot")
+    def _do_reboot():
+        time.sleep(3)
+        subprocess.run(['sudo', 'reboot'], check=False)
+    threading.Thread(target=_do_reboot, daemon=True).start()
 
 
 def main() -> None:

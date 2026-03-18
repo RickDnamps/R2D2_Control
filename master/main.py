@@ -78,10 +78,16 @@ def try_git_pull(cfg: configparser.ConfigParser) -> bool:
             capture_output=True, text=True
         )
         if result.returncode == 0:
-            subprocess.run(
+            rev = subprocess.run(
                 ["git", "rev-parse", "--short", "HEAD"],
                 cwd=repo, capture_output=True, text=True
             )
+            if rev.returncode == 0:
+                try:
+                    with open(VERSION_FILE, 'w') as f:
+                        f.write(rev.stdout.strip())
+                except OSError as e:
+                    logging.warning(f"Impossible d'écrire VERSION: {e}")
             logging.info("git pull réussi au démarrage")
             return True
         else:

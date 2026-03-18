@@ -94,6 +94,8 @@ class DisplayDriver(BaseDriver):
 
     def syncing(self, version: str = "") -> bool:
         """Synchronisation version en cours — reste sur l'écran de diagnostic."""
+        if version:
+            return self._send(f"DISP:SYNCING:{version}")
         return self._send("DISP:SYNCING")
 
     def error(self, code: str) -> bool:

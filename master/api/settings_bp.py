@@ -86,10 +86,10 @@ def get_settings():
             'ip':         wlan1_ip.split('/')[0] if wlan1_ip else '',
         },
         'hotspot': {
-            'ssid':    cfg.get('hotspot', 'ssid',     fallback='R2D2_Control'),
-            'password': cfg.get('hotspot', 'password', fallback='r2d2droid'),
-            'ip':      '192.168.4.1',
-            'active':  '100' in wlan0_state,
+            'ssid':         cfg.get('hotspot', 'ssid', fallback='R2D2_Control'),
+            'password_set': bool(cfg.get('hotspot', 'password', fallback='')),
+            'ip':           '192.168.4.1',
+            'active':       '100' in wlan0_state,
         },
         'github': {
             'repo_url':          cfg.get('github', 'repo_url',          fallback=''),

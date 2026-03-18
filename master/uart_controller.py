@@ -19,6 +19,7 @@ from shared.uart_protocol import build_msg, parse_msg, HEARTBEAT_INTERVAL_MS
 log = logging.getLogger(__name__)
 
 MAX_INVALID_CRC_BEFORE_ALERT = 3
+_MAX_BUFFER = 4096
 
 
 class UARTController:
@@ -103,6 +104,9 @@ class UARTController:
                 if not data:
                     continue
                 buffer += data.decode('utf-8', errors='replace')
+                if len(buffer) > _MAX_BUFFER:
+                    log.warning(f"Buffer UART overflow ({len(buffer)} bytes) — reset")
+                    buffer = ""
                 while '\n' in buffer:
                     line, buffer = buffer.split('\n', 1)
                     self._process_line(line)

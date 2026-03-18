@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>R2-D2 — Schéma de branchements</title>
+<style>
+  body { background:#0d0d1a; color:#ddd; font-family:'Segoe UI',Arial,sans-serif; margin:0; padding:16px; }
+  h1   { text-align:center; color:#00d4ff; margin:0 0 4px; font-size:22px; }
+  .sub { text-align:center; color:#556; font-size:12px; margin-bottom:16px; }
+  svg  { display:block; margin:auto; }
+
+  /* Boxes */
+  .box-battery  { fill:#1a1200; stroke:#ffcc00; stroke-width:2.5; }
+  .box-corps    { fill:#091520; stroke:#2255aa; stroke-width:2; }
+  .box-dome     { fill:#150920; stroke:#9933cc; stroke-width:2; }
+  .box-slip     { fill:#141410; stroke:#aaaa33; stroke-width:2; }
+  .box-vesc     { fill:#0a1a0a; stroke:#338833; stroke-width:1.5; }
+  .box-motor    { fill:#111;    stroke:#444;    stroke-width:1.5; }
+  .box-buck5    { fill:#081808; stroke:#33aa33; stroke-width:2; }
+  .box-buck12   { fill:#180e00; stroke:#cc7700; stroke-width:2; }
+  .box-pi       { fill:#081808; stroke:#228822; stroke-width:1.5; }
+  .box-device   { fill:#080818; stroke:#224488; stroke-width:1.5; }
+  .box-hat      { fill:#181008; stroke:#886622; stroke-width:1.5; }
+  .box-servo    { fill:#080818; stroke:#334488; stroke-width:1.5; }
+  .box-uart     { fill:#080f18; stroke:#1a4488; stroke-width:1.5; }
+  .box-fuse     { fill:#1a0f00; stroke:#ff6600; stroke-width:2; }
+  .box-switch   { fill:#0f0f1a; stroke:#aaaaff; stroke-width:2; }
+  .box-xt90     { fill:#1a0a00; stroke:#ff4400; stroke-width:2; }
+  .box-wire-24  { fill:#1a0808; stroke:#ff3333; stroke-width:1; }
+  .box-wire-gnd { fill:#111;    stroke:#444;    stroke-width:1; }
+  .box-wire-uart{ fill:#080f1a; stroke:#2266cc; stroke-width:1; }
+  .box-wire-sp  { fill:#141414; stroke:#333;    stroke-width:1; }
+
+  /* Text colours */
+  .t-yellow { fill:#ffcc44; }
+  .t-orange { fill:#ffaa44; }
+  .t-green  { fill:#55cc55; }
+  .t-lgreen { fill:#33aa33; }
+  .t-blue   { fill:#4499ff; }
+  .t-lblue  { fill:#2266aa; }
+  .t-purple { fill:#cc55ff; }
+  .t-red    { fill:#ff4444; }
+  .t-gray   { fill:#999; }
+  .t-dgray  { fill:#666; }
+  .t-yellow2{ fill:#aaaa33; }
+
+  /* Wire colours */
+  .w24  { stroke:#ff3333; }
+  .w5   { stroke:#33cc33; }
+  .w12  { stroke:#ff9900; }
+  .wuart{ stroke:#4488ff; }
+  .wi2c { stroke:#9944ff; }
+  .wgnd { stroke:#555; }
+  .wsig { stroke:#ff9900; stroke-dasharray:5,3; }
+</style>
+</head>
+<body>
+<h1>⚡ R2-D2 — Schéma de branchements</h1>
+<p class="sub">Architecture alimentation complète — Batterie 24V XT60</p>
+
+<svg width="1380" height="1020" viewBox="0 0 1380 1020" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="ar"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#ff3333"/></marker>
+  <marker id="ag"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#33cc33"/></marker>
+  <marker id="ao"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#ff9900"/></marker>
+  <marker id="ab"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#4488ff"/></marker>
+  <marker id="av"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#9944ff"/></marker>
+</defs>
+
+<!-- ═══════════════════ FOND SECTIONS ═══════════════════ -->
+<rect x="8"   y="230" width="570" height="780" rx="12" class="box-corps"/>
+<rect x="586" y="335" width="208" height="480" rx="8"  class="box-slip"/>
+<rect x="802" y="230" width="570" height="780" rx="12" class="box-dome"/>
+
+<!-- Titres sections -->
+<text x="293"  y="254" text-anchor="middle" font-size="14" font-weight="bold" class="t-blue">🔧 CORPS — Slave (Pi 4B 2G)</text>
+<text x="690"  y="357" text-anchor="middle" font-size="12" font-weight="bold" class="t-yellow2">⚙ SLIPRING</text>
+<text x="690"  y="372" text-anchor="middle" font-size="11" class="t-yellow2">12 fils</text>
+<text x="1087" y="254" text-anchor="middle" font-size="14" font-weight="bold" class="t-purple">🔮 DÔME — Master (Pi 4B 4G)</text>
+
+<!-- ═══════════════════ BATTERIE + SÉCURITÉ ═══════════════════ -->
+<rect x="540" y="8" width="300" height="52" rx="10" class="box-battery"/>
+<text x="690" y="29"  text-anchor="middle" font-size="15" font-weight="bold" class="t-yellow">⚡ BATTERIE 24V</text>
+<text x="690" y="48"  text-anchor="middle" font-size="11" class="t-orange">XT60 — Source principale</text>
+
+<!-- Ligne batterie → fusible principal -->
+<line x1="690" y1="60" x2="690" y2="75" stroke="#ff3333" stroke-width="2.5" marker-end="url(#ar)"/>
+
+<!-- Fusible principal 80A -->
+<rect x="610" y="75" width="160" height="40" rx="6" class="box-fuse"/>
+<text x="690" y="91"  text-anchor="middle" font-size="12" font-weight="bold" fill="#ff8800">⚡ FUSIBLE 80A</text>
+<text x="690" y="107" text-anchor="middle" font-size="10" fill="#aa5500">Le + proche possible du + batterie</text>
+
+<!-- Ligne fusible → switch principal -->
+<line x1="690" y1="115" x2="690" y2="130" stroke="#ff3333" stroke-width="2.5" marker-end="url(#ar)"/>
+
+<!-- Switch principal -->
+<rect x="600" y="130" width="180" height="40" rx="6" class="box-switch"/>
+<text x="690" y="147" text-anchor="middle" font-size="12" font-weight="bold" fill="#aaaaff">⏻ SWITCH PRINCIPAL</text>
+<text x="690" y="163" text-anchor="middle" font-size="10" fill="#6666aa">30A+ — tout couper d'un coup</text>
+
+<!-- Switch → jonction principale -->
+<line x1="690" y1="170" x2="690" y2="190" stroke="#ff3333" stroke-width="2.5"/>
+
+<!-- Jonction — ligne horizontale -->
+<line x1="200" y1="190" x2="1180" y2="190" stroke="#ff3333" stroke-width="2.5"/>
+<circle cx="690" cy="190" r="5" fill="#ff3333"/>
+
+<!-- Branche gauche VESC (XT90-S) -->
+<line x1="200" y1="190" x2="200" y2="205" stroke="#ff3333" stroke-width="2.5" marker-end="url(#ar)"/>
+<rect x="110" y="205" width="180" height="40" rx="6" class="box-xt90"/>
+<text x="200" y="222" text-anchor="middle" font-size="12" font-weight="bold" fill="#ff6622">🔌 XT90-S</text>
+<text x="200" y="238" text-anchor="middle" font-size="10" fill="#aa4400">Anti-spark VESCs intégré</text>
+
+<!-- Branche droite électronique (fusible 15A + switch) -->
+<line x1="1000" y1="190" x2="1000" y2="205" stroke="#ff3333" stroke-width="2.5"/>
+<!-- Fusible 15A -->
+<rect x="920" y="205" width="160" height="38" rx="6" class="box-fuse"/>
+<text x="1000" y="221" text-anchor="middle" font-size="12" font-weight="bold" fill="#ff8800">⚡ FUSIBLE 15A</text>
+<text x="1000" y="237" text-anchor="middle" font-size="10" fill="#aa5500">Branche électronique</text>
+<!-- Switch électronique -->
+<line x1="1000" y1="243" x2="1000" y2="258" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+<rect x="920" y="258" width="160" height="38" rx="6" class="box-switch"/>
+<text x="1000" y="274" text-anchor="middle" font-size="11" font-weight="bold" fill="#aaaaff">⏻ SWITCH ÉLECTRO</text>
+<text x="1000" y="288" text-anchor="middle" font-size="10" fill="#6666aa">10A — Pi + servos</text>
+
+<!-- XT90-S → VESCs (ligne vers corps) -->
+<line x1="200" y1="245" x2="200" y2="270" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+
+<!-- Switch électro → jonction corps/dôme -->
+<line x1="1000" y1="296" x2="1000" y2="315" stroke="#ff3333" stroke-width="2"/>
+<line x1="293"  y1="315" x2="1087" y2="315" stroke="#ff3333" stroke-width="2"/>
+<circle cx="1000" cy="315" r="4" fill="#ff3333"/>
+<line x1="293"  y1="315" x2="293"  y2="330" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="1087" y1="315" x2="1087" y2="330" stroke="#ff3333" stroke-width="2.5" stroke-dasharray="7,3" marker-end="url(#ar)"/>
+
+<!-- ═══════════════════ CORPS ═══════════════════ -->
+
+<!-- Bus 24V Corps (vient du XT90-S) -->
+<line x1="25" y1="282" x2="570" y2="282" stroke="#ff3333" stroke-width="2"/>
+<text x="28" y="277" font-size="10" class="t-red">BUS 24V (XT90-S)</text>
+
+<!-- VESC L -->
+<rect x="22"  y="293" width="130" height="44" rx="6" class="box-vesc"/>
+<text x="87"  y="312" text-anchor="middle" font-size="12" font-weight="bold" class="t-green">VESC Gauche</text>
+<text x="87"  y="328" text-anchor="middle" font-size="10" class="t-lgreen">/dev/ttyACM0</text>
+<line x1="87" y1="282" x2="87" y2="293" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+
+<!-- VESC R -->
+<rect x="22"  y="350" width="130" height="44" rx="6" class="box-vesc"/>
+<text x="87"  y="369" text-anchor="middle" font-size="12" font-weight="bold" class="t-green">VESC Droit</text>
+<text x="87"  y="385" text-anchor="middle" font-size="10" class="t-lgreen">/dev/ttyACM1</text>
+<line x1="87" y1="337" x2="87" y2="350" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+
+<!-- Hub Motors -->
+<rect x="22"  y="415" width="130" height="40" rx="5" class="box-motor"/>
+<text x="87"  y="432" text-anchor="middle" font-size="11" font-weight="bold" class="t-gray">Hub Motor G</text>
+<text x="87"  y="446" text-anchor="middle" font-size="10" class="t-dgray">250W / 24V</text>
+<line x1="87" y1="394" x2="87" y2="415" stroke="#ff9900" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ao)"/>
+
+<rect x="22"  y="468" width="130" height="40" rx="5" class="box-motor"/>
+<text x="87"  y="485" text-anchor="middle" font-size="11" font-weight="bold" class="t-gray">Hub Motor D</text>
+<text x="87"  y="499" text-anchor="middle" font-size="10" class="t-dgray">250W / 24V</text>
+<line x1="87" y1="455" x2="87" y2="468" stroke="#ff9900" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ao)"/>
+
+<!-- Ligne séparatrice verticale -->
+<line x1="170" y1="293" x2="170" y2="970" stroke="#1a2233" stroke-width="1" stroke-dasharray="4,4"/>
+
+<!-- Bus 24V électronique (vient du switch électro) -->
+<line x1="183" y1="340" x2="570" y2="340" stroke="#ff3333" stroke-width="1.5" stroke-dasharray="5,3"/>
+<text x="186" y="335" font-size="9" class="t-red">BUS 24V électronique</text>
+
+<!-- ── Buck 5V Corps ── -->
+<rect x="183" y="350" width="158" height="48" rx="6" class="box-buck5"/>
+<text x="262" y="370" text-anchor="middle" font-size="13" font-weight="bold" class="t-green">Buck 24V → 5V</text>
+<text x="262" y="388" text-anchor="middle" font-size="11" class="t-lgreen">10A — logique + servos</text>
+<line x1="262" y1="340" x2="262" y2="350" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+
+<!-- Pi Slave -->
+<rect x="358" y="347" width="195" height="36" rx="5" class="box-pi"/>
+<text x="455" y="362" text-anchor="middle" font-size="11" font-weight="bold" class="t-green">🖥 Pi 4B 2G — Slave</text>
+<text x="455" y="376" text-anchor="middle" font-size="10" class="t-lgreen">5V / 3A</text>
+<line x1="341" y1="370" x2="358" y2="365" stroke="#33cc33" stroke-width="1.5" marker-end="url(#ag)"/>
+
+<!-- RP2040 -->
+<rect x="358" y="395" width="195" height="36" rx="5" class="box-device"/>
+<text x="455" y="410" text-anchor="middle" font-size="11" font-weight="bold" class="t-blue">RP2040 Touch LCD</text>
+<text x="455" y="424" text-anchor="middle" font-size="10" class="t-lblue">/dev/ttyACM2 — 5V USB</text>
+<line x1="341" y1="380" x2="358" y2="413" stroke="#33cc33" stroke-width="1.5" marker-end="url(#ag)"/>
+
+<!-- Audio -->
+<rect x="358" y="443" width="195" height="36" rx="5" class="box-pi"/>
+<text x="455" y="458" text-anchor="middle" font-size="11" font-weight="bold" class="t-green">🔊 Audio Jack 3.5mm</text>
+<text x="455" y="472" text-anchor="middle" font-size="10" class="t-lgreen">Natif Pi 4B → Ampli → HP</text>
+<line x1="341" y1="390" x2="358" y2="461" stroke="#33cc33" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ag)"/>
+
+<!-- ── PCA9685 Body ── -->
+<rect x="183" y="515" width="158" height="48" rx="6" class="box-device"/>
+<text x="262" y="535" text-anchor="middle" font-size="12" font-weight="bold" class="t-blue">PCA9685 Body</text>
+<text x="262" y="553" text-anchor="middle" font-size="10" class="t-lblue">I2C 0x41 — 16ch</text>
+<line x1="262" y1="398" x2="262" y2="515" stroke="#33cc33" stroke-width="1.5" marker-end="url(#ag)"/>
+
+<!-- Servos Body -->
+<rect x="358" y="507" width="195" height="62" rx="5" class="box-servo"/>
+<text x="455" y="525" text-anchor="middle" font-size="11" font-weight="bold" class="t-blue">Servos Body</text>
+<text x="455" y="541" text-anchor="middle" font-size="10" class="t-lblue">Bras, panneaux, utilitaires</text>
+<text x="455" y="556" text-anchor="middle" font-size="10" class="t-lblue">5V — jusqu'à 16 canaux</text>
+<line x1="341" y1="539" x2="358" y2="539" stroke="#9944ff" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#av)"/>
+
+<!-- ── Buck 12V Corps ── -->
+<rect x="183" y="597" width="158" height="48" rx="6" class="box-buck12"/>
+<text x="262" y="617" text-anchor="middle" font-size="13" font-weight="bold" class="t-orange">Buck 24V → 12V</text>
+<text x="262" y="635" text-anchor="middle" font-size="11" class="t-orange">Moteur dôme DC</text>
+<line x1="262" y1="340" x2="262" y2="597" stroke="#ff3333" stroke-width="2"/>
+<line x1="262" y1="563" x2="262" y2="597" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+
+<!-- Motor Driver HAT -->
+<rect x="358" y="590" width="195" height="48" rx="5" class="box-hat"/>
+<text x="455" y="608" text-anchor="middle" font-size="11" font-weight="bold" class="t-orange">Motor Driver HAT</text>
+<text x="455" y="623" text-anchor="middle" font-size="10" fill="#886622">Waveshare TB6612 — I2C 0x40</text>
+<text x="455" y="633" text-anchor="middle" font-size="9" fill="#664400">12V VIN → sortie directe moteur</text>
+<line x1="341" y1="614" x2="358" y2="614" stroke="#ff9900" stroke-width="1.5" marker-end="url(#ao)"/>
+
+<!-- Moteur DC Dôme -->
+<rect x="358" y="657" width="195" height="42" rx="5" class="box-motor"/>
+<text x="455" y="675" text-anchor="middle" font-size="11" font-weight="bold" class="t-gray">Moteur DC Dôme</text>
+<text x="455" y="690" text-anchor="middle" font-size="10" class="t-dgray">~12V — rotation dôme</text>
+<line x1="455" y1="638" x2="455" y2="657" stroke="#ff9900" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ao)"/>
+
+<!-- UART Corps -->
+<rect x="22"  y="750" width="155" height="42" rx="5" class="box-uart"/>
+<text x="99"  y="767" text-anchor="middle" font-size="11" font-weight="bold" class="t-blue">UART ttyAMA0</text>
+<text x="99"  y="782" text-anchor="middle" font-size="10" class="t-lblue">BCM 14/15 → slipring</text>
+<line x1="99" y1="792" x2="99" y2="840" stroke="#4488ff" stroke-width="1.5"/>
+<line x1="99" y1="840" x2="590" y2="480" stroke="#4488ff" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ab)"/>
+
+<!-- ═══════════════════ SLIPRING ═══════════════════ -->
+
+<!-- Fils -->
+<rect x="592" y="385" width="196" height="22" rx="3" class="box-wire-24"/>
+<text x="690" y="401" text-anchor="middle" font-size="11" class="t-red">Fils 1-3 : 24V (×3 parallèle)</text>
+
+<rect x="592" y="420" width="196" height="22" rx="3" class="box-wire-gnd"/>
+<text x="690" y="436" text-anchor="middle" font-size="11" class="t-gray">Fils 4-6 : GND (×3 parallèle)</text>
+
+<rect x="592" y="455" width="196" height="22" rx="3" class="box-wire-uart"/>
+<text x="690" y="471" text-anchor="middle" font-size="11" class="t-blue">Fil 7 : UART TX  →</text>
+
+<rect x="592" y="490" width="196" height="22" rx="3" class="box-wire-uart"/>
+<text x="690" y="506" text-anchor="middle" font-size="11" class="t-blue">Fil 8 : UART RX  ←</text>
+
+<rect x="592" y="525" width="196" height="22" rx="3" class="box-wire-sp"/>
+<text x="690" y="541" text-anchor="middle" font-size="11" class="t-dgray">Fils 9-12 : Spare</text>
+
+<text x="690" y="580" text-anchor="middle" font-size="10" class="t-yellow2">~4-6A capacité 24V+GND</text>
+<text x="690" y="596" text-anchor="middle" font-size="10" class="t-yellow2">fils combinés en parallèle</text>
+
+<!-- Flèches Corps → Slipring -->
+<line x1="572" y1="396" x2="592" y2="396" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="572" y1="431" x2="592" y2="431" stroke="#555"    stroke-width="2"/>
+<line x1="572" y1="466" x2="592" y2="466" stroke="#4488ff" stroke-width="1.5"/>
+<line x1="572" y1="501" x2="592" y2="501" stroke="#4488ff" stroke-width="1.5"/>
+
+<!-- Flèches Slipring → Dôme -->
+<line x1="788" y1="396" x2="808" y2="396" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="788" y1="431" x2="808" y2="431" stroke="#555"    stroke-width="2"/>
+<line x1="788" y1="466" x2="808" y2="466" stroke="#4488ff" stroke-width="1.5" marker-end="url(#ab)"/>
+<line x1="788" y1="501" x2="808" y2="501" stroke="#4488ff" stroke-width="1.5" marker-end="url(#ab)"/>
+
+<!-- ═══════════════════ DÔME ═══════════════════ -->
+
+<!-- Bus 24V Dôme (vient du switch électro via slipring) -->
+<line x1="818" y1="340" x2="1368" y2="340" stroke="#ff3333" stroke-width="2" stroke-dasharray="5,3"/>
+<text x="822" y="335" font-size="9" class="t-red">BUS 24V (slipring)</text>
+
+<!-- ── Buck 5V Dôme ── -->
+<rect x="822" y="350" width="158" height="48" rx="6" class="box-buck5"/>
+<text x="901" y="370" text-anchor="middle" font-size="13" font-weight="bold" class="t-green">Buck 24V → 5V</text>
+<text x="901" y="388" text-anchor="middle" font-size="11" class="t-lgreen">5A — Pi + Teeces</text>
+<line x1="901" y1="340" x2="901" y2="350" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+
+<!-- Pi Master -->
+<rect x="998" y="347" width="200" height="36" rx="5" class="box-pi"/>
+<text x="1098" y="362" text-anchor="middle" font-size="11" font-weight="bold" class="t-green">🖥 Pi 4B 4G — Master</text>
+<text x="1098" y="376" text-anchor="middle" font-size="10" class="t-lgreen">5V / 3A — Flask API</text>
+<line x1="980" y1="370" x2="998" y2="365" stroke="#33cc33" stroke-width="1.5" marker-end="url(#ag)"/>
+
+<!-- Teeces32 -->
+<rect x="998" y="395" width="200" height="36" rx="5" class="box-device"/>
+<text x="1098" y="410" text-anchor="middle" font-size="11" font-weight="bold" class="t-blue">Teeces32 LEDs</text>
+<text x="1098" y="424" text-anchor="middle" font-size="10" class="t-lblue">/dev/ttyUSB0 — JawaLite 9600</text>
+<line x1="980" y1="380" x2="998" y2="413" stroke="#33cc33" stroke-width="1.5" marker-end="url(#ag)"/>
+
+<!-- Caméra USB -->
+<rect x="998" y="443" width="200" height="36" rx="5" class="box-device"/>
+<text x="1098" y="458" text-anchor="middle" font-size="11" font-weight="bold" class="t-blue">📷 Caméra USB</text>
+<text x="1098" y="472" text-anchor="middle" font-size="10" fill="#1a4466">Vision — Phase 5 (futur)</text>
+<line x1="980" y1="390" x2="998" y2="461" stroke="#33cc33" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ag)"/>
+
+<!-- Séparateur -->
+<line x1="818" y1="507" x2="1368" y2="507" stroke="#1a2233" stroke-width="1" stroke-dasharray="4,4"/>
+
+<!-- ── Buck 12V Dôme ── -->
+<rect x="822" y="520" width="158" height="48" rx="6" class="box-buck12"/>
+<text x="901" y="540" text-anchor="middle" font-size="13" font-weight="bold" class="t-orange">Buck 24V → 12V</text>
+<text x="901" y="558" text-anchor="middle" font-size="11" class="t-orange">HAT servos dôme</text>
+<line x1="901" y1="340" x2="901" y2="520" stroke="#ff3333" stroke-width="2" stroke-dasharray="5,3"/>
+<line x1="901" y1="500" x2="901" y2="520" stroke="#ff3333" stroke-width="2" marker-end="url(#ar)"/>
+<!-- Servo Driver HAT PCA9685 -->
+<rect x="998" y="513" width="200" height="56" rx="5" class="box-hat"/>
+<text x="1098" y="531" text-anchor="middle" font-size="11" font-weight="bold" class="t-orange">Servo Driver HAT</text>
+<text x="1098" y="546" text-anchor="middle" font-size="10" fill="#886622">Waveshare PCA9685 — I2C 0x40</text>
+<text x="1098" y="560" text-anchor="middle" font-size="10" fill="#664400">12V → régule 5V interne → servos</text>
+<line x1="980" y1="544" x2="998" y2="544" stroke="#ff9900" stroke-width="1.5" marker-end="url(#ao)"/>
+
+<!-- Servos Dôme -->
+<rect x="998" y="585" width="200" height="56" rx="5" class="box-servo"/>
+<text x="1098" y="603" text-anchor="middle" font-size="11" font-weight="bold" class="t-blue">Servos Dôme</text>
+<text x="1098" y="618" text-anchor="middle" font-size="10" class="t-lblue">Rotations, panneaux dôme</text>
+<text x="1098" y="633" text-anchor="middle" font-size="10" class="t-lblue">5V HAT — max 16 canaux</text>
+<line x1="1098" y1="569" x2="1098" y2="585" stroke="#ff9900" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ao)"/>
+
+<!-- UART Dôme -->
+<rect x="822" y="680" width="158" height="42" rx="5" class="box-uart"/>
+<text x="901" y="697" text-anchor="middle" font-size="11" font-weight="bold" class="t-blue">UART ttyAMA0</text>
+<text x="901" y="712" text-anchor="middle" font-size="10" class="t-lblue">BCM 14/15 → slipring</text>
+<line x1="901" y1="722" x2="901" y2="780" stroke="#4488ff" stroke-width="1.5"/>
+<line x1="901" y1="780" x2="788" y2="501" stroke="#4488ff" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ab)"/>
+
+<!-- ═══════════════════ LÉGENDE ═══════════════════ -->
+<line x1="10" y1="985" x2="1370" y2="985" stroke="#222" stroke-width="1.5"/>
+
+<text x="25"  y="1005" font-size="12" font-weight="bold" class="t-red">─── 24V</text>
+<text x="115" y="1005" font-size="12" font-weight="bold" class="t-green">─── 5V</text>
+<text x="200" y="1005" font-size="12" font-weight="bold" class="t-orange">─── 12V</text>
+<text x="295" y="1005" font-size="12" font-weight="bold" class="t-blue">─── UART</text>
+<text x="405" y="1005" font-size="12" font-weight="bold" fill="#aaaaff">─── Switch/Fuse</text>
+<text x="560" y="1005" font-size="12" fill="#ff6622">─── XT90-S anti-spark</text>
+<text x="720" y="1005" font-size="12" class="t-dgray">- - -  Signal / via slipring</text>
+<text x="890" y="1005" font-size="11" fill="#445">⚡ Fusible 80A proche batterie  |  XT90-S VESCs  |  Slipring 12 fils  |  24V XT60</text>
+</svg>
+</body>
+</html>

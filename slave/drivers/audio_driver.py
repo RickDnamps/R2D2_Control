@@ -65,6 +65,9 @@ class AudioDriver(BaseDriver):
 
     def play(self, filename: str) -> bool:
         """Joue un fichier MP3 par nom (sans extension)."""
+        if not filename or any(c in filename for c in ('/', '\\', '..')):
+            log.warning(f"Nom de fichier audio refusé (path traversal): {filename!r}")
+            return False
         path = os.path.join(self._sounds_dir, filename + '.mp3')
         if not os.path.isfile(path):
             log.warning(f"Son introuvable: {path}")

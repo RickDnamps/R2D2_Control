@@ -21,6 +21,10 @@ import master.registry as reg
 motion_bp = Blueprint('motion', __name__, url_prefix='/motion')
 
 
+def _clamp(val: float, lo: float = -1.0, hi: float = 1.0) -> float:
+    return max(lo, min(hi, val))
+
+
 # ------------------------------------------------------------------
 # Propulsion
 # ------------------------------------------------------------------
@@ -29,8 +33,8 @@ motion_bp = Blueprint('motion', __name__, url_prefix='/motion')
 def drive():
     """Propulsion différentielle. Body: {"left": float, "right": float}"""
     body  = request.get_json(silent=True) or {}
-    left  = float(body.get('left',  0.0))
-    right = float(body.get('right', 0.0))
+    left  = _clamp(float(body.get('left',  0.0)))
+    right = _clamp(float(body.get('right', 0.0)))
     if reg.vesc:
         reg.vesc.drive(left, right)
     elif reg.uart:
@@ -43,8 +47,8 @@ def drive():
 def arcade():
     """Arcade drive. Body: {"throttle": float, "steering": float}"""
     body     = request.get_json(silent=True) or {}
-    throttle = float(body.get('throttle', 0.0))
-    steering = float(body.get('steering', 0.0))
+    throttle = _clamp(float(body.get('throttle', 0.0)))
+    steering = _clamp(float(body.get('steering', 0.0)))
     if reg.vesc:
         reg.vesc.arcade_drive(throttle, steering)
     return jsonify({'status': 'ok', 'throttle': throttle, 'steering': steering})
@@ -75,7 +79,7 @@ def motion_state():
 def dome_turn():
     """Rotation dôme. Body: {"speed": float}"""
     body  = request.get_json(silent=True) or {}
-    speed = float(body.get('speed', 0.0))
+    speed = _clamp(float(body.get('speed', 0.0)))
     if reg.dome:
         reg.dome.turn(speed)
     elif reg.uart:

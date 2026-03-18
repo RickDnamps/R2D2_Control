@@ -77,6 +77,11 @@ class TeecesController(BaseDriver):
         """PSI animations aléatoires."""
         return self.send_command("4S1\r")
 
+    def psi_mode(self, mode: int) -> bool:
+        """Contrôle PSI avec mode spécifique. 1=aléatoire, 0=éteint."""
+        mode = max(0, int(mode))
+        return self.send_command(f"4S{mode}\r")
+
     def fld_text(self, text: str) -> bool:
         """Texte défilant sur Front Logic Display. Max ~20 chars."""
         text = text[:20].upper()

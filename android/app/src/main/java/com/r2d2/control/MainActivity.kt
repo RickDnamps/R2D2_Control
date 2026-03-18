@@ -7,13 +7,18 @@ import android.os.*
 import android.view.*
 import android.webkit.*
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import com.r2d2.control.databinding.ActivityMainBinding
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var webView: WebView
+    private var isServerOnline = false
+    private val pingHandler = Handler(Looper.getMainLooper())
 
     companion object {
         const val PREF_FILE = "r2d2_prefs"
@@ -26,8 +31,13 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Full screen immersive — keep screen on during robot control
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        webView = binding.webview
+
+        // Full screen immersive — must be after setContentView (DecorView required)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.apply {
                 hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
@@ -44,18 +54,22 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        webView = binding.webview
-
         setupWebView()
         loadDashboard()
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) webView.goBack()
+                else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
-        val prefs = getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
-
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -67,6 +81,8 @@ class MainActivity : AppCompatActivity() {
             mediaPlaybackRequiresUserGesture = false
             cacheMode = WebSettings.LOAD_DEFAULT
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            allowUniversalAccessFromFileURLs = true
+            allowFileAccessFromFileURLs = true
         }
 
         // Native bridge: vibration, WiFi info, settings
@@ -82,8 +98,6 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
                     binding.loadingOverlay.visibility = View.GONE
-                    val host = prefs.getString(PREF_HOST, DEFAULT_HOST) ?: DEFAULT_HOST
-                    view?.loadDataWithBaseURL(null, buildErrorHtml(host), "text/html", "UTF-8", null)
                 }
             }
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -99,57 +113,62 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadDashboard() {
+        webView.loadUrl("file:///android_asset/index.html")
+        startPingLoop()
+    }
+
+    private fun startPingLoop() {
         val prefs = getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
         val host = prefs.getString(PREF_HOST, DEFAULT_HOST) ?: DEFAULT_HOST
         val port = prefs.getInt("port", DEFAULT_PORT)
-        webView.loadUrl("http://$host:$port")
+        pingHandler.post(object : Runnable {
+            override fun run() {
+                Thread {
+                    val online = checkServer(host, port)
+                    runOnUiThread {
+                        if (online != isServerOnline) {
+                            isServerOnline = online
+                            updateStatusBanner(host, port, online)
+                            // Reload WebView when server comes back online
+                            if (online) webView.evaluateJavascript(
+                                "window.R2D2_API_BASE = 'http://$host:$port'; if(typeof pollStatus==='function') pollStatus();", null
+                            )
+                        }
+                    }
+                    pingHandler.postDelayed(this, if (online) 15_000L else 5_000L)
+                }.start()
+            }
+        })
     }
 
-    private fun buildErrorHtml(host: String): String = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <style>
-            body { margin:0; background:#080c14; color:#8899aa; font-family:monospace;
-                   display:flex; flex-direction:column; align-items:center;
-                   justify-content:center; height:100vh; text-align:center; padding:20px; box-sizing:border-box; }
-            h1   { color:#ff2244; font-size:28px; margin:0 0 8px; letter-spacing:3px; }
-            h2   { color:#00aaff; font-size:16px; font-weight:normal; margin:0 0 32px; letter-spacing:2px; }
-            .ip  { color:#00ffea; font-size:20px; background:rgba(0,170,255,0.1);
-                   padding:10px 24px; border-radius:8px; border:1px solid rgba(0,170,255,0.3);
-                   margin:16px 0; display:inline-block; }
-            .step{ text-align:left; background:rgba(0,0,0,0.3); border-radius:12px;
-                   padding:20px 28px; margin:16px 0; max-width:400px; line-height:2; }
-            .step b { color:#00aaff; }
-            button { margin-top:24px; padding:14px 32px; background:rgba(0,170,255,0.15);
-                     border:1px solid #00aaff; border-radius:8px; color:#00aaff;
-                     font-family:monospace; font-size:14px; letter-spacing:2px;
-                     cursor:pointer; }
-            button:active { background:rgba(0,170,255,0.3); }
-            .pulse { animation: pulse 2s ease-in-out infinite; }
-            @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
-          </style>
-        </head>
-        <body>
-          <h1>CONNECTION LOST</h1>
-          <h2>R2-D2 CONTROL SYSTEM</h2>
-          <div class="pulse" style="font-size:48px;">&#129302;</div>
-          <div class="ip">http://$host:$DEFAULT_PORT</div>
-          <div class="step">
-            <b>1.</b> Verify R2-D2 is powered on<br>
-            <b>2.</b> Connect your phone to WiFi <b>R2D2_Control</b><br>
-            <b>3.</b> Press Retry
-          </div>
-          <button onclick="window.location.reload()">RETRY</button>
-        </body>
-        </html>
-    """.trimIndent()
+    private fun checkServer(host: String, port: Int): Boolean {
+        return try {
+            val url = URL("http://$host:$port/status")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 3000
+            conn.readTimeout = 3000
+            conn.requestMethod = "GET"
+            val code = conn.responseCode
+            conn.disconnect()
+            code in 200..299
+        } catch (e: Exception) {
+            false
+        }
+    }
 
-    override fun onBackPressed() {
-        if (webView.canGoBack()) webView.goBack()
-        else super.onBackPressed()
+    private fun updateStatusBanner(host: String, port: Int, online: Boolean) {
+        binding.statusHost.text = "$host:$port"
+        if (online) {
+            binding.statusDot.setTextColor(android.graphics.Color.parseColor("#00ff88"))
+            binding.statusText.text = "EN LIGNE"
+            binding.statusText.setTextColor(android.graphics.Color.parseColor("#00ff88"))
+            binding.statusBanner.setBackgroundColor(android.graphics.Color.parseColor("#00100a"))
+        } else {
+            binding.statusDot.setTextColor(android.graphics.Color.parseColor("#ff2244"))
+            binding.statusText.text = "HORS LIGNE"
+            binding.statusText.setTextColor(android.graphics.Color.parseColor("#ff2244"))
+            binding.statusBanner.setBackgroundColor(android.graphics.Color.parseColor("#0d0014"))
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -169,11 +188,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Reload dashboard if we were showing an error page (network might be back)
     override fun onResume() {
         super.onResume()
         webView.onResume()
-        if (webView.url?.startsWith("data:") == true) loadDashboard()
     }
 
     override fun onPause() {
@@ -182,6 +199,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        pingHandler.removeCallbacksAndMessages(null)
         webView.destroy()
         super.onDestroy()
     }
@@ -199,6 +217,9 @@ class NativeBridge(private val activity: MainActivity) {
      */
     @JavascriptInterface
     fun vibrate(ms: Long) {
+        val hapticEnabled = activity.getSharedPreferences(MainActivity.PREF_FILE, Context.MODE_PRIVATE)
+            .getBoolean("haptic", false)
+        if (!hapticEnabled) return
         val v = activity.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             v.vibrate(
@@ -255,6 +276,18 @@ class NativeBridge(private val activity: MainActivity) {
     }
 
     /**
+     * Returns the full API base URL (http://host:port).
+     * Called from JavaScript: AndroidBridge.getApiBase()
+     */
+    @JavascriptInterface
+    fun getApiBase(): String {
+        val prefs = activity.getSharedPreferences(MainActivity.PREF_FILE, Context.MODE_PRIVATE)
+        val host = prefs.getString(MainActivity.PREF_HOST, MainActivity.DEFAULT_HOST) ?: MainActivity.DEFAULT_HOST
+        val port = prefs.getInt("port", MainActivity.DEFAULT_PORT)
+        return "http://$host:$port"
+    }
+
+    /**
      * Show a native Android Toast message.
      * Called from JavaScript: AndroidBridge.toast("Message")
      */
@@ -273,8 +306,10 @@ class NativeBridge(private val activity: MainActivity) {
     fun isNetworkAvailable(): Boolean {
         return try {
             val cm = activity.getSystemService(Context.CONNECTIVITY_SERVICE)
-                as? android.net.ConnectivityManager
-            cm?.activeNetworkInfo?.isConnected ?: false
+                as? android.net.ConnectivityManager ?: return false
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
         } catch (e: Exception) {
             false
         }

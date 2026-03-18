@@ -158,6 +158,10 @@ class DeployController:
 
     def _sync_remote_url(self) -> None:
         """Met à jour git remote origin si l'URL dans local.cfg est différente."""
+        url = self._github_url
+        if not (url.startswith('https://') or url.startswith('http://') or url.startswith('git@')):
+            log.warning(f"URL GitHub invalide ignorée: {url!r}")
+            return
         try:
             result = subprocess.run(
                 ["git", "remote", "get-url", "origin"],
@@ -165,12 +169,12 @@ class DeployController:
                 capture_output=True, text=True, timeout=5
             )
             current_url = result.stdout.strip()
-            if current_url != self._github_url:
+            if current_url != url:
                 subprocess.run(
-                    ["git", "remote", "set-url", "origin", self._github_url],
+                    ["git", "remote", "set-url", "origin", url],
                     cwd=self._repo_path, timeout=5, check=True
                 )
-                log.info(f"Remote origin mis à jour: {self._github_url}")
+                log.info(f"Remote origin mis à jour: {url}")
         except Exception as e:
             log.warning(f"Impossible de sync remote URL: {e}")
 
@@ -185,7 +189,7 @@ class DeployController:
                 result = subprocess.run(
                     [
                         "rsync", "-avz", "--delete",
-                        "-e", "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10",
+                        "-e", "ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10",
                         local_path, slave_slave_path
                     ],
                     timeout=120,

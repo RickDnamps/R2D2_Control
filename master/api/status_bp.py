@@ -12,6 +12,7 @@ Endpoints:
 import datetime
 import os
 import subprocess
+import threading
 from flask import Blueprint, request, jsonify
 import master.registry as reg
 
@@ -63,7 +64,10 @@ def get_version():
 @status_bp.post('/system/reboot')
 def system_reboot():
     """Reboot le Master (Pi dôme)."""
-    os.system('sudo reboot')
+    threading.Thread(
+        target=lambda: subprocess.run(['sudo', 'reboot'], check=False),
+        daemon=True
+    ).start()
     return jsonify({'status': 'rebooting'})
 
 
@@ -79,5 +83,8 @@ def system_reboot_slave():
 @status_bp.post('/system/shutdown')
 def system_shutdown():
     """Éteint le Master."""
-    os.system('sudo shutdown -h now')
+    threading.Thread(
+        target=lambda: subprocess.run(['sudo', 'shutdown', '-h', 'now'], check=False),
+        daemon=True
+    ).start()
     return jsonify({'status': 'shutting_down'})

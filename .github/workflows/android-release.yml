@@ -1,0 +1,48 @@
+name: Android Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-release.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk R2-D2_Control.apk
+
+      - name: Publish latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes 2>/dev/null || true
+          git push --delete origin latest 2>/dev/null || true
+          gh release create latest R2-D2_Control.apk \
+            --title "R2-D2 Control — Latest" \
+            --notes "Build automatique depuis le commit \`${{ github.sha }}\`
+
+          **Installation Android :**
+          1. Télécharger \`R2-D2_Control.apk\`
+          2. Activer *Sources inconnues* dans les paramètres Android
+          3. Ouvrir le fichier pour installer
+
+          **Connexion :** Se connecter au hotspot \`R2D2_Control\` puis lancer l'app." \
+            --latest

@@ -32,20 +32,80 @@ pour l'API REST Flask et la structure modulaire.
 > ✅ Plus besoin de hub USB — 4 ports USB natifs suffisent
 > ✅ BCM 18/19/21 libres pour usage futur
 
-### Slipring — Fils traversants (dôme tourne)
-| Fil | Signal | Notes |
-|-----|--------|-------|
-| 1 | 24V | Alimente Buck DC-DC dôme (calibre plus gros) |
-| 2 | GND | Commun |
-| 3 | UART TX | R2-Slave (corps) → R2-Master (dôme) |
-| 4 | UART RX | R2-Master (dôme) → R2-Slave (corps) |
-| 5-6 | Spare | Réservé futur |
+### Slipring — 12 fils (dôme tourne)
+| Fils | Signal | Notes |
+|------|--------|-------|
+| 1-3 | 24V | 3 fils en parallèle → ~4-6A capacité totale |
+| 4-6 | GND | 3 fils en parallèle |
+| 7 | UART TX | R2-Slave (corps) → R2-Master (dôme) |
+| 8 | UART RX | R2-Master (dôme) → R2-Slave (corps) |
+| 9-12 | Spare | Réservé futur (caméra USB, etc.) |
+
+> ✅ Seulement 24V + GND traversent le slipring — les bucks sont dans le dôme
+> ✅ Fils en parallèle pour augmenter la capacité de courant sans changer le slipring
 
 ### Propulsion
 - 2× Hub Motor 250W/24V (double shaft) — roues motrices
 - 4× JayCreer 58mm Omni Wheels — stabilisation omnidirectionnelle
 - Batterie 24V (XT60) — source principale
-- 2× Buck DC-DC : 24V→5V/10A (servos+logique) et 24V→5V/5A (Pi+audio)
+
+### Architecture d'alimentation
+```
+[BATTERIE 24V XT60]
+        │
+  [FUSIBLE 80A]  ← le plus proche possible du + batterie
+        │
+  [SWITCH PRINCIPAL]  ← interrupteur 30A+, tout couper d'un coup
+        │
+   ┌────┴────────────────────────┐
+   │                             │
+[XT90-S]                   [FUSIBLE 15A]
+[VESC ×2]                  [SWITCH ÉLECTRONIQUE]  ← allumer Pi/servos séparément
+(24V direct — propulsion)        │
+                           ┌─────┴──────────────────────┐
+                           │                            │
+                    [Corps — Slave]              [Dôme — Master]
+                    Buck 24V→5V/10A              (via slipring 24V)
+                    → Pi Slave, RP2040, audio    Buck 24V→5V/5A
+                    Buck 24V→12V                 → Pi Master, Teeces32
+                    → Motor HAT TB6612           Buck 24V→12V
+                      → Moteur dôme DC           → Servo Driver HAT PCA9685
+                                                   → Servos dôme 5V
+```
+
+### Sécurité électrique — composants requis
+
+| Composant | Valeur | Emplacement | Rôle |
+|-----------|--------|-------------|------|
+| Fusible + holder | **80A** | Fil + batterie, le plus court possible | Protection court-circuit principal |
+| Interrupteur principal | **30A+** | Après fusible 80A | Tout couper d'un coup |
+| XT90-S (paire) | — | Entre switch principal et VESCs | Anti-spark condensateurs VESC |
+| Fusible + holder | **15A** | Branche électronique (bucks) | Protection Pi/servos |
+| Interrupteur secondaire | **10A** | Branche électronique | Allumer électronique séparément |
+
+### ⚠️ Procédure de mise sous tension (ordre obligatoire)
+```
+1. Switch principal OFF, XT90-S déconnecté
+2. Brancher la batterie
+3. Activer switch principal → Pi + servos s'allument
+4. Attendre boot Pi (30s) — vérifier que tout est OK
+5. Connecter XT90-S → VESCs s'alimentent sans arc (anti-spark intégré)
+```
+
+### ⚠️ Procédure d'arrêt
+```
+1. Couper les VESCs (logiciel ou déconnecter XT90-S)
+2. Switch principal OFF
+3. Déconnecter batterie si stockage
+```
+
+> ✅ XT90-S : anti-spark intégré (résistance interne charge les condensateurs avant contact complet)
+> ✅ Servo Driver HAT (PCA9685) : entrée 6-12V, régulateur intégré → sort 5V aux servos, max 3A total
+> ✅ Motor Driver HAT (TB6612) : entrée 6-12V sur VIN, passe directement au moteur (pas de régulation)
+> ⚠️ Ne jamais connecter les VESCs sans XT90-S — risque d'arc et dommages condensateurs
+> ⚠️ Fusible 80A le plus court possible du + batterie — en cas de court-circuit le fil fond avant le fusible si trop long
+> ⚠️ Vérifier le voltage exact du moteur dôme DC avant de choisir 12V ou autre tension
+> ⚠️ Ne jamais alimenter les servos en 12V directement — max 6V pour servos standard
 
 ---
 
@@ -678,10 +738,11 @@ TX d'un côté = toujours sur RX de l'autre. Règle physique universelle.
 - [x] **1.7** Teeces32 JawaLite (random/leia/off/text/psi)
 - [x] **1.8** Audio 306 sons MP3 par catégorie (aplay jack 3.5mm)
 - [ ] Validation sur hardware réel (UART slipring physique)
+> ⚠️ Slipring non encore reçu — tests UART Phase 2 à faire sur breadboard bench (connexion directe BCM14/15)
 
 ### Phase 2 — Propulsion & Actionneurs 🔧 Code prêt — décommenter
 - [ ] **2.1** Brancher VESC USB `/dev/ttyACM0/1` → décommenter dans `slave/main.py`
-- [ ] **2.2** Brancher Syren10 dôme → décommenter `DomeMotorDriver` dans `master/main.py`
+- [ ] **2.2** Brancher Waveshare Motor Driver HAT #15364 (TB6612, I2C 0x40) → décommenter `DomeMotorDriver` dans `master/main.py`
 - [ ] **2.3** Brancher PCA9685 body → décommenter `BodyServoDriver` dans les deux main.py
 - [ ] **2.4** Calibrer canaux servo dans `slave/drivers/body_servo_driver.py` → `SERVO_MAP`
 - [ ] **2.5** Tester watchdog VESC (arrêt si heartbeat perdu — critique sécurité)
@@ -697,6 +758,16 @@ TX d'un côté = toujours sur RX de l'autre. Règle physique universelle.
 - [ ] **4.3** Tester dashboard sur `http://r2-master.local:5000`
 - [ ] **4.4** Tester contrôle WASD depuis navigateur mobile (hotspot)
 - [ ] **4.5** App Android (Phase 4+ — UDP joystick ou WebView dashboard)
+
+### Phase 4.5 — App Android ✅ Implémentée
+- [x] WebView wrapper + assets bundlés (charge dashboard offline depuis `android/app/src/main/assets/`)
+- [x] Bandeau connexion natif (rouge HORS LIGNE / vert EN LIGNE) — ping auto toutes les 5s/15s
+- [x] `window.R2D2_API_BASE` injecté via `AndroidBridge.getApiBase()` avant chargement app.js
+- [x] Haptic feedback désactivé par défaut, contrôlable dans Settings
+- [ ] Test sur hotspot R2D2_Control réel avec Master en ligne
+
+> ⚠️ Assets Android à synchroniser manuellement si `master/static/` ou `master/templates/index.html` change :
+> `android/app/src/main/assets/` = copies de `master/static/css/`, `master/static/js/`, `master/templates/index.html`
 
 ### Phase 5 — Vision (futur)
 - [ ] **5.1** Caméra USB + flux vidéo MJPEG
@@ -814,7 +885,8 @@ J:\R2-D2_Build\software\others\r2_control-master\
 - **Architecture Master/Slave** vs monolithique dans r2_control
 
 ### Notes importantes
-- Le **Watchdog est non-négociable** — toujours tester en premier sur hardware réel
+- Le **Watchdog est non-négociable** — toujours tester en premier sur hardware réel (bench breadboard avant slipring)
+- **Robot non assemblé** — pièces 3D encore en cours d'impression, tous les tests hardware se font sur bench/breadboard pour l'instant
 - Le **slipring limite les fils** — ne jamais ajouter un signal sans valider le budget fils
 - Le **RP2040 est autonome** — son firmware change rarement, ne pas l'inclure dans le pipeline rsync
 - **Mode dégradé** = Slave démarre avec version locale si Master injoignable + alerte RP2040 + alerte Teeces32
@@ -822,3 +894,41 @@ J:\R2-D2_Build\software\others\r2_control-master\
 - **FSESC Mini 6.7 PRO** = 4-13S LiPo, utiliser PyVESC avec commandes `SetDutyCycle`
 - **Hub Motors 250W/24V double shaft** — prévoir rampes douces (risque basculement)
 - **Phase 2/3/4** = code déjà écrit, décommenter les blocs dans `master/main.py` + `slave/main.py`
+- **App Android** = charge dashboard depuis assets bundlés (`file:///android_asset/`) — API calls vers Pi via `window.R2D2_API_BASE`
+
+---
+
+## 📱 Build Android (Windows — PC de dev)
+
+```bash
+# ADB
+ADB="C:/Users/erict/AppData/Local/Android/Sdk/platform-tools/adb.exe"
+
+# Build APK debug
+powershell.exe -Command "& { \$env:JAVA_HOME='C:/Program Files/Android/Android Studio/jbr'; Set-Location 'J:/R2-D2_Build/software/android'; ./gradlew.bat assembleDebug }"
+
+# Installer + lancer
+"$ADB" install -r android/app/build/outputs/apk/debug/app-debug.apk
+"$ADB" shell am start -n com.r2d2.control/.MainActivity
+
+# Voir crashes en temps réel
+"$ADB" logcat -s AndroidRuntime:E
+```
+
+> ⚠️ `window.insetsController` doit être appelé APRÈS `setContentView` — NPE sinon (DecorView null)
+> ⚠️ Adaptive icons (`<adaptive-icon>`) doivent être dans `mipmap-anydpi-v26/` avec AGP 8.13+
+> ⚠️ Réinstaller proprement (`uninstall` + `install`) pour réinitialiser les SharedPreferences
+
+---
+
+## 🤖 CI/CD Android — GitHub Actions
+
+Le workflow `.github/workflows/android-release.yml` compile et publie automatiquement
+l'APK chaque fois que le dossier `android/` change sur `main`. Aucun setup requis.
+
+### Lien de téléchargement permanent
+```
+https://github.com/RickDnamps/R2D2_Control/releases/latest/download/R2-D2_Control.apk
+```
+
+> Push sur `main` avec des changements dans `android/` → build automatique → APK mis à jour sur GitHub

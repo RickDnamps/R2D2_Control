@@ -72,7 +72,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             key = "haptic"
             title = "Joystick haptic feedback"
             summary = "Light vibration when moving joystick"
-            setDefaultValue(true)
+            setDefaultValue(false)
             catDisplay.addPreference(this)
         }
 
