@@ -832,9 +832,10 @@ class StatusPoller {
   async poll() {
     const data = await api('/status');
     if (!data) {
-      this._setPill('pill-heartbeat', false, 'HB');
+      this._setOffline(true);
       return;
     }
+    this._setOffline(false);
 
     this._setPill('pill-heartbeat', data.heartbeat_ok, 'HB');
     this._setPill('pill-uart',      data.uart_ready,   'UART');
@@ -884,6 +885,15 @@ class StatusPoller {
     if (data.teeces_mode) {
       teecesController._applyFLDMode(data.teeces_mode);
     }
+  }
+
+  _setOffline(offline) {
+    const pillOffline = el('pill-offline');
+    if (pillOffline) pillOffline.style.display = offline ? '' : 'none';
+    ['pill-heartbeat', 'pill-uart', 'pill-bt', 'pill-version'].forEach(id => {
+      const p = el(id);
+      if (p) p.style.display = offline ? 'none' : '';
+    });
   }
 
   _setPill(id, ok, label) {

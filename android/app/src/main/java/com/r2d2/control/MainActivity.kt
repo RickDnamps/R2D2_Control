@@ -128,10 +128,8 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (online != isServerOnline) {
                             isServerOnline = online
-                            updateStatusBanner(host, port, online)
-                            // Reload WebView when server comes back online
                             if (online) webView.evaluateJavascript(
-                                "window.R2D2_API_BASE = 'http://$host:$port'; if(typeof pollStatus==='function') pollStatus();", null
+                                "window.R2D2_API_BASE = 'http://$host:$port';", null
                             )
                         }
                     }
@@ -153,21 +151,6 @@ class MainActivity : AppCompatActivity() {
             code in 200..299
         } catch (e: Exception) {
             false
-        }
-    }
-
-    private fun updateStatusBanner(host: String, port: Int, online: Boolean) {
-        binding.statusHost.text = "$host:$port"
-        if (online) {
-            binding.statusDot.setTextColor(android.graphics.Color.parseColor("#00ff88"))
-            binding.statusText.text = "EN LIGNE"
-            binding.statusText.setTextColor(android.graphics.Color.parseColor("#00ff88"))
-            binding.statusBanner.setBackgroundColor(android.graphics.Color.parseColor("#00100a"))
-        } else {
-            binding.statusDot.setTextColor(android.graphics.Color.parseColor("#ff2244"))
-            binding.statusText.text = "HORS LIGNE"
-            binding.statusText.setTextColor(android.graphics.Color.parseColor("#ff2244"))
-            binding.statusBanner.setBackgroundColor(android.graphics.Color.parseColor("#0d0014"))
         }
     }
 

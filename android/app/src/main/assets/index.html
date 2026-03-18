@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>R2-D2 Control System</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css">
   <!-- PWA -->
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   <meta name="theme-color" content="#00aaff">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -34,6 +34,7 @@
   </div>
 
   <div class="topbar-center">
+    <div class="status-pill error" id="pill-offline" style="display:none"><span class="pulse-dot"></span>OFFLINE</div>
     <div class="status-pill" id="pill-heartbeat">
       <span class="pulse-dot"></span>HB
     </div>
@@ -471,12 +472,13 @@
 <!-- Toast notifications -->
 <div id="toast" class="toast"></div>
 
+<script src="/static/js/app.js"></script>
 <script>
-  // Resolve API base URL: from AndroidBridge (when running in app) or empty (when served by Flask)
-  window.R2D2_API_BASE = (typeof AndroidBridge !== 'undefined' && AndroidBridge.getApiBase)
-    ? AndroidBridge.getApiBase()
-    : '';
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js')
+      .then(r => console.log('SW registered'))
+      .catch(e => console.log('SW error:', e));
+  }
 </script>
-<script src="js/app.js"></script>
 </body>
 </html>
