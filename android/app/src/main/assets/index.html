@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>R2-D2 Control System</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#00aaff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="R2-D2">
+  <meta name="mobile-web-app-capable" content="yes">
+</head>
+<body>
+
+<!-- ================================================================
+     HEADER — Fixed holographic bar
+================================================================ -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <svg class="r2-logo" width="32" height="32" viewBox="0 0 32 32">
+      <circle cx="16" cy="10" r="9" fill="none" stroke="#00aaff" stroke-width="1.5"/>
+      <rect x="8" y="17" width="16" height="11" rx="2" fill="none" stroke="#00aaff" stroke-width="1.5"/>
+      <circle cx="11" cy="10" r="2" fill="#00ffea" opacity="0.8"/>
+      <circle cx="21" cy="10" r="2" fill="#00ffea" opacity="0.8"/>
+      <rect x="12" y="7" width="8" height="4" rx="1" fill="#00aaff" opacity="0.3"/>
+    </svg>
+    <div class="brand-text">
+      <span class="brand-r2">R2-D2</span>
+      <span class="brand-sub">CONTROL SYSTEM</span>
+    </div>
+  </div>
+
+  <div class="topbar-center">
+    <div class="status-pill" id="pill-heartbeat">
+      <span class="pulse-dot"></span>HB
+    </div>
+    <div class="status-pill" id="pill-uart">
+      <span class="pulse-dot"></span>UART
+    </div>
+    <div class="status-pill" id="pill-bt">
+      <svg width="10" height="10" viewBox="0 0 10 10" class="bt-icon">
+        <path d="M5 1 L7 3 L5 5 L7 7 L5 9 L5 5 L3 7 L5 5 L3 3 L5 5 Z" fill="currentColor"/>
+      </svg>
+      BT
+    </div>
+    <div class="status-pill" id="pill-version">v?</div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="battery-mini">
+      <svg id="battery-arc-mini" width="44" height="28" viewBox="0 0 44 28">
+        <path d="M4 24 A20 20 0 0 1 40 24" fill="none" stroke="#1a2a3a" stroke-width="4" stroke-linecap="round"/>
+        <path id="battery-arc-path" d="M4 24 A20 20 0 0 1 40 24" fill="none" stroke="#00cc66" stroke-width="4" stroke-linecap="round" stroke-dasharray="63" stroke-dashoffset="0"/>
+      </svg>
+      <span id="battery-pct" class="battery-pct">--V</span>
+    </div>
+    <div class="header-stats">
+      <span id="temp-label" class="stat-val">--°C</span>
+      <span class="stat-sep">|</span>
+      <span id="clock-label" class="stat-val">--:--:--</span>
+    </div>
+    <span id="uptime-label" class="uptime-label">up --:--</span>
+  </div>
+</header>
+
+<!-- ================================================================
+     TAB BAR
+================================================================ -->
+<nav class="tabbar">
+  <button class="tab active" data-tab="drive">
+    <svg width="14" height="14" viewBox="0 0 14 14" class="tab-icon"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="7" r="2" fill="currentColor"/></svg>
+    DRIVE
+  </button>
+  <button class="tab" data-tab="audio">
+    <svg width="14" height="14" viewBox="0 0 14 14" class="tab-icon"><rect x="1" y="4" width="4" height="6" rx="1" fill="currentColor"/><path d="M5 4 L10 1 L10 13 L5 10 Z" fill="currentColor"/></svg>
+    AUDIO
+  </button>
+  <button class="tab" data-tab="sequences">
+    <svg width="14" height="14" viewBox="0 0 14 14" class="tab-icon"><rect x="1" y="2" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="6" width="8" height="2" rx="1" fill="currentColor"/><rect x="1" y="10" width="10" height="2" rx="1" fill="currentColor"/></svg>
+    SEQUENCES
+  </button>
+  <button class="tab" data-tab="systems">
+    <svg width="14" height="14" viewBox="0 0 14 14" class="tab-icon"><circle cx="7" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 3"/></svg>
+    SYSTEMS
+  </button>
+  <button class="tab" data-tab="config">
+    <svg width="14" height="14" viewBox="0 0 14 14" class="tab-icon"><circle cx="7" cy="7" r="2" fill="currentColor"/><path d="M7 1 L8 3 L10 2 L11 4 L9 5 L10 7 L8 7 L8 9 L6 9 L6 7 L4 7 L5 5 L3 4 L4 2 L6 3 Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+    CONFIG
+  </button>
+</nav>
+
+<!-- ================================================================
+     TAB 1: DRIVE
+================================================================ -->
+<div class="tab-content active" id="tab-drive">
+
+  <div class="drive-layout">
+
+    <!-- Left joystick — Propulsion -->
+    <div class="joystick-panel joystick-panel-left">
+      <div class="joystick-label">PROPULSION</div>
+      <div class="joystick-ring" id="js-left-ring">
+        <div class="joystick-crosshair"></div>
+        <div class="joystick-knob" id="js-left-knob"></div>
+      </div>
+      <div class="joystick-vals">
+        <span>T: <span id="js-left-t">0.00</span></span>
+        <span>S: <span id="js-left-s">0.00</span></span>
+      </div>
+    </div>
+
+    <!-- Center column -->
+    <div class="drive-center">
+      <!-- Status gauges row -->
+      <div class="gauge-row">
+        <div class="gauge-card">
+          <svg id="battery-gauge-svg" width="120" height="70" viewBox="0 0 120 70">
+            <path d="M10 62 A54 54 0 0 1 110 62" fill="none" stroke="#0d1e30" stroke-width="8" stroke-linecap="round"/>
+            <path id="battery-gauge-arc" d="M10 62 A54 54 0 0 1 110 62" fill="none" stroke="#00cc66" stroke-width="8" stroke-linecap="round" stroke-dasharray="170" stroke-dashoffset="0"/>
+            <text x="60" y="55" text-anchor="middle" fill="#00cc66" font-size="14" font-family="'Courier New',monospace" id="battery-gauge-text">--V</text>
+            <text x="60" y="66" text-anchor="middle" fill="#445566" font-size="8" font-family="'Courier New',monospace">BATTERY</text>
+          </svg>
+        </div>
+        <div class="gauge-card temp-gauge-card">
+          <div class="temp-label">TEMP</div>
+          <div class="temp-bar-wrap">
+            <div class="temp-bar-bg">
+              <div id="temp-bar-fill" class="temp-bar-fill" style="height:0%"></div>
+            </div>
+          </div>
+          <div id="temp-val-drive" class="temp-val">--°C</div>
+        </div>
+      </div>
+
+      <!-- Emergency stop -->
+      <button class="estop-btn" id="estop-btn" onclick="emergencyStop()">
+        <span class="estop-icon">&#9632;</span>
+        <span class="estop-text">EMERGENCY STOP</span>
+      </button>
+
+      <!-- Speed + dome controls -->
+      <div class="drive-controls-row">
+        <div class="speed-wrap">
+          <label class="ctrl-label">SPEED LIMIT <span id="speed-val" class="ctrl-val">60%</span></label>
+          <input type="range" id="speed-slider" min="10" max="100" value="60"
+                 oninput="setSpeed(this.value)" class="holo-slider">
+        </div>
+        <div class="dome-toggle-wrap">
+          <label class="toggle-label">
+            DOME AUTO
+            <input type="checkbox" id="dome-random-ctrl" onchange="domeRandom(this.checked)">
+            <span class="toggle-switch"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Keyboard indicator -->
+      <div class="kbd-indicator">
+        <div class="kbd-row">
+          <div class="kbd-key" id="kbd-w">W</div>
+        </div>
+        <div class="kbd-row">
+          <div class="kbd-key" id="kbd-a">A</div>
+          <div class="kbd-key" id="kbd-s">S</div>
+          <div class="kbd-key" id="kbd-d">D</div>
+        </div>
+        <div class="kbd-hint-text">/ ARROW KEYS</div>
+      </div>
+    </div>
+
+    <!-- Right joystick — Dome -->
+    <div class="joystick-panel joystick-panel-right">
+      <div class="joystick-label">DOME</div>
+      <div class="joystick-ring" id="js-right-ring">
+        <div class="joystick-crosshair"></div>
+        <div class="joystick-knob" id="js-right-knob"></div>
+      </div>
+      <div class="joystick-vals">
+        <span>X: <span id="js-right-x">0.00</span></span>
+        <span>Y: <span id="js-right-y">0.00</span></span>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ================================================================
+     TAB 2: AUDIO
+================================================================ -->
+<div class="tab-content" id="tab-audio">
+  <div class="audio-layout">
+
+    <!-- Category pills -->
+    <div class="audio-categories-wrap">
+      <h3 class="section-title">SOUND CATEGORIES</h3>
+      <div class="audio-categories" id="audio-categories">
+        <!-- generated by JS -->
+      </div>
+    </div>
+
+    <!-- Sound grid -->
+    <div class="audio-sounds-wrap">
+      <h3 class="section-title">SOUNDS — <span id="audio-cat-name">select a category</span></h3>
+      <div class="audio-sounds-grid" id="audio-sounds-grid">
+        <div class="audio-empty">Select a category above to browse sounds</div>
+      </div>
+    </div>
+
+    <!-- Now playing bar -->
+    <div class="now-playing-bar" id="now-playing-bar">
+      <div class="waveform" id="waveform">
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+      </div>
+      <span id="now-playing-text" class="now-playing-text">IDLE</span>
+      <div class="audio-quick-btns">
+        <button class="btn btn-sm" onclick="audioRandom()">RANDOM</button>
+        <button class="btn btn-sm btn-danger" onclick="audioStop()">STOP</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================
+     TAB 3: SEQUENCES
+================================================================ -->
+<div class="tab-content" id="tab-sequences">
+  <div class="sequences-layout">
+    <div class="sequences-header">
+      <h3 class="section-title">SEQUENCE SCRIPTS</h3>
+      <div class="row">
+        <button class="btn btn-danger" onclick="api('/scripts/stop_all','POST').then(()=>toast('All sequences stopped','ok'))">
+          STOP ALL
+        </button>
+        <span class="running-label">Running: <span id="running-count">0</span></span>
+      </div>
+    </div>
+    <div class="scripts-grid" id="script-list">
+      <!-- generated by JS -->
+    </div>
+    <div class="running-list-wrap">
+      <strong class="section-title-sm">ACTIVE:</strong>
+      <span id="running-scripts" class="running-list">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     TAB 4: SYSTEMS — Teeces + Servos + BT Controller
+================================================================ -->
+<div class="tab-content" id="tab-systems">
+  <div class="systems-grid">
+
+    <!-- Teeces Control -->
+    <section class="card systems-card">
+      <h2 class="card-title">TEECES LOGIC DISPLAY</h2>
+
+      <!-- FLD preview -->
+      <div class="fld-preview" id="fld-preview">
+        <div class="fld-row" id="fld-row-0"></div>
+        <div class="fld-row" id="fld-row-1"></div>
+        <div class="fld-row" id="fld-row-2"></div>
+      </div>
+      <div class="psi-preview">
+        <div class="psi-label">PSI</div>
+        <div class="psi-dot" id="psi-left"></div>
+        <div class="psi-dot" id="psi-right"></div>
+      </div>
+
+      <!-- Mode buttons -->
+      <div class="btn-group mt">
+        <button class="btn btn-active" id="teeces-btn-random" onclick="teecesMode('random')">RANDOM</button>
+        <button class="btn" id="teeces-btn-leia" onclick="teecesMode('leia')">LEIA</button>
+        <button class="btn btn-dark" id="teeces-btn-off" onclick="teecesMode('off')">OFF</button>
+      </div>
+
+      <!-- Text input -->
+      <div class="row mt">
+        <input type="text" id="teeces-text" placeholder="FLD scrolling text (max 20)…"
+               maxlength="20" class="input-text">
+        <button class="btn" onclick="sendTeecesText()">SEND</button>
+      </div>
+
+      <!-- PSI swatches -->
+      <div class="psi-swatches-label mt">PSI COLOR</div>
+      <div class="psi-swatches" id="psi-swatches">
+        <!-- generated by JS -->
+      </div>
+    </section>
+
+    <!-- Servo Controls -->
+    <section class="card systems-card">
+      <h2 class="card-title">SERVO BODY PANELS</h2>
+      <div class="servo-grid" id="servo-list">
+        <!-- generated by JS -->
+      </div>
+      <div class="row mt">
+        <button class="btn btn-active" onclick="api('/servo/open_all','POST').then(()=>toast('All servos open','ok'))">OPEN ALL</button>
+        <button class="btn btn-dark" onclick="api('/servo/close_all','POST').then(()=>toast('All servos closed','ok'))">CLOSE ALL</button>
+      </div>
+    </section>
+
+    <!-- BT Controller -->
+    <section class="card systems-card">
+      <h2 class="card-title">BLUETOOTH CONTROLLER</h2>
+      <div class="bt-status-row">
+        <svg class="gamepad-icon" width="48" height="32" viewBox="0 0 48 32">
+          <rect x="4" y="8" width="40" height="18" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="0" y="14" width="12" height="8" rx="4" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="36" y="14" width="12" height="8" rx="4" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="14" y="11" width="3" height="8" rx="1" fill="currentColor" opacity="0.7"/>
+          <rect x="12" y="13" width="7" height="3" rx="1" fill="currentColor" opacity="0.7"/>
+          <circle cx="32" cy="13" r="1.5" fill="currentColor" opacity="0.7"/>
+          <circle cx="36" cy="16" r="1.5" fill="currentColor" opacity="0.7"/>
+          <circle cx="32" cy="19" r="1.5" fill="currentColor" opacity="0.7"/>
+          <circle cx="28" cy="16" r="1.5" fill="currentColor" opacity="0.7"/>
+          <circle cx="22" cy="14" r="1.5" fill="currentColor" opacity="0.5"/>
+          <circle cx="26" cy="14" r="1.5" fill="currentColor" opacity="0.5"/>
+        </svg>
+        <div class="bt-info">
+          <div id="bt-status-text" class="bt-status-text">NOT CONNECTED</div>
+          <div id="bt-device-name" class="bt-device-name">—</div>
+        </div>
+        <div class="bt-battery-wrap">
+          <div id="bt-battery-bar" class="bt-battery-bar">
+            <div id="bt-battery-fill" style="width:0%"></div>
+          </div>
+          <span id="bt-battery-pct">--%</span>
+        </div>
+      </div>
+
+      <table class="bt-mapping-table">
+        <thead><tr><th>ACTION</th><th>BUTTON</th></tr></thead>
+        <tbody>
+          <tr><td>Throttle</td><td><select id="bt-map-throttle" class="input-text input-sm"><option>L_STICK_Y</option><option>R2</option></select></td></tr>
+          <tr><td>Steering</td><td><select id="bt-map-steer" class="input-text input-sm"><option>L_STICK_X</option><option>L1/R1</option></select></td></tr>
+          <tr><td>Dome</td><td><select id="bt-map-dome" class="input-text input-sm"><option>R_STICK_X</option><option>D_PAD_LR</option></select></td></tr>
+          <tr><td>Panel 1</td><td><select id="bt-map-panel1" class="input-text input-sm"><option>SQUARE</option><option>Y</option><option>X</option></select></td></tr>
+          <tr><td>Panel 2</td><td><select id="bt-map-panel2" class="input-text input-sm"><option>TRIANGLE</option><option>B</option><option>A</option></select></td></tr>
+          <tr><td>Audio Random</td><td><select id="bt-map-audio" class="input-text input-sm"><option>CIRCLE</option><option>SELECT</option></select></td></tr>
+        </tbody>
+      </table>
+
+      <div class="row mt">
+        <div class="speed-wrap" style="flex:1">
+          <label class="ctrl-label">DEADZONE <span id="bt-deadzone-val" class="ctrl-val">8%</span></label>
+          <input type="range" id="bt-deadzone" min="0" max="30" value="8"
+                 oninput="el('bt-deadzone-val').textContent=this.value+'%'" class="holo-slider">
+        </div>
+      </div>
+
+      <div class="btn-group mt">
+        <button class="btn" onclick="saveBTConfig()">SAVE MAPPING</button>
+        <div class="speed-mode-btns">
+          <button class="btn speed-mode-btn" data-mode="slow" onclick="setSpeedMode('slow')">SLOW</button>
+          <button class="btn speed-mode-btn btn-active" data-mode="normal" onclick="setSpeedMode('normal')">NORMAL</button>
+          <button class="btn speed-mode-btn" data-mode="fast" onclick="setSpeedMode('fast')">FAST</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ================================================================
+     TAB 5: CONFIG — WiFi + GitHub + System
+================================================================ -->
+<div class="tab-content" id="tab-config">
+  <div class="settings-grid">
+
+    <!-- WiFi Internet (wlan1) -->
+    <section class="card settings-card">
+      <h2 class="card-title">WiFi INTERNET (wlan1)</h2>
+      <div class="settings-status" id="wifi-status">Loading...</div>
+
+      <div class="form-group">
+        <label>Available networks</label>
+        <div class="row">
+          <select id="wifi-scan-list" class="input-text" onchange="onScanSelect(this.value)">
+            <option value="">— Click Scan —</option>
+          </select>
+          <button class="btn" id="btn-scan" onclick="scanWifi()">SCAN</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>SSID</label>
+        <input type="text" id="wifi-ssid" class="input-text" placeholder="Network name">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="wifi-password" class="input-text" placeholder="Leave blank to keep current">
+      </div>
+      <button class="btn btn-active" onclick="applyWifi()">CONNECT wlan1</button>
+    </section>
+
+    <!-- Hotspot R2-D2 (wlan0) -->
+    <section class="card settings-card">
+      <h2 class="card-title">HOTSPOT R2-D2 (wlan0)</h2>
+      <div class="settings-status" id="hotspot-status">Loading...</div>
+
+      <div class="form-group">
+        <label>Hotspot SSID</label>
+        <input type="text" id="hotspot-ssid" class="input-text">
+      </div>
+      <div class="form-group">
+        <label>Password (min 8 chars)</label>
+        <input type="password" id="hotspot-password" class="input-text"
+               placeholder="Leave blank to keep current">
+      </div>
+      <div class="settings-note">
+        Fixed IP: 192.168.4.1 — clients must reconnect after applying
+      </div>
+      <button class="btn btn-warn" onclick="applyHotspot()">APPLY + RESTART HOTSPOT</button>
+    </section>
+
+    <!-- GitHub / Deploy -->
+    <section class="card settings-card">
+      <h2 class="card-title">GITHUB / DEPLOY</h2>
+      <div class="form-group">
+        <label>Git branch</label>
+        <input type="text" id="git-branch" class="input-text">
+      </div>
+      <div class="form-group">
+        <label>Slave hostname</label>
+        <input type="text" id="slave-host" class="input-text">
+      </div>
+      <div class="form-group">
+        <label class="toggle-label">
+          Auto-pull on boot
+          <input type="checkbox" id="auto-pull">
+          <span class="toggle-switch"></span>
+        </label>
+      </div>
+      <button class="btn" onclick="saveConfig()">SAVE CONFIG</button>
+    </section>
+
+    <!-- System -->
+    <section class="card settings-card">
+      <h2 class="card-title">SYSTEM</h2>
+      <div class="settings-status" id="system-version">Loading...</div>
+      <div class="btn-group-v">
+        <button class="btn btn-warn"
+                onclick="confirmAction('Reboot Master?', '/system/reboot')">
+          REBOOT MASTER
+        </button>
+        <button class="btn btn-warn"
+                onclick="confirmAction('Reboot Slave?', '/system/reboot_slave')">
+          REBOOT SLAVE
+        </button>
+        <button class="btn btn-danger"
+                onclick="confirmAction('SHUTDOWN Master?', '/system/shutdown')">
+          SHUTDOWN MASTER
+        </button>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- Toast notifications -->
+<div id="toast" class="toast"></div>
+
+<script>
+  // Resolve API base URL: from AndroidBridge (when running in app) or empty (when served by Flask)
+  window.R2D2_API_BASE = (typeof AndroidBridge !== 'undefined' && AndroidBridge.getApiBase)
+    ? AndroidBridge.getApiBase()
+    : '';
+</script>
+<script src="js/app.js"></script>
+</body>
+</html>
