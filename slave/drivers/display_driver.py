@@ -13,26 +13,32 @@ from shared.base_driver import BaseDriver
 
 log = logging.getLogger(__name__)
 
-DISPLAY_PORT = "/dev/ttyACM2"
-DISPLAY_BAUD = 115200
+DISPLAY_BAUD  = 115200
+# Ports à essayer dans l'ordre — le RP2040 prend le premier ACM disponible
+# Si les VESCs ne sont pas branchés, le RP2040 est sur ttyACM0
+DISPLAY_PORTS = ["/dev/ttyACM0", "/dev/ttyACM1", "/dev/ttyACM2"]
 
 
 class DisplayDriver(BaseDriver):
-    def __init__(self, port: str = DISPLAY_PORT, baud: int = DISPLAY_BAUD):
-        self._port = port
-        self._baud = baud
+    def __init__(self, port: str = "auto", baud: int = DISPLAY_BAUD):
+        self._port   = port
+        self._baud   = baud
         self._serial: serial.Serial | None = None
-        self._ready = False
+        self._ready  = False
 
     def setup(self) -> bool:
-        try:
-            self._serial = serial.Serial(self._port, self._baud, timeout=1)
-            self._ready = True
-            log.info(f"DisplayDriver ouvert: {self._port}")
-            return True
-        except serial.SerialException as e:
-            log.error(f"Impossible d'ouvrir display {self._port}: {e}")
-            return False
+        ports = DISPLAY_PORTS if self._port == "auto" else [self._port]
+        for port in ports:
+            try:
+                self._serial = serial.Serial(port, self._baud, timeout=1)
+                self._port  = port
+                self._ready = True
+                log.info(f"DisplayDriver ouvert: {port}")
+                return True
+            except serial.SerialException:
+                continue
+        log.error(f"DisplayDriver: aucun port disponible parmi {ports}")
+        return False
 
     def shutdown(self) -> None:
         if self._serial and self._serial.is_open:

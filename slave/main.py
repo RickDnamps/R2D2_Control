@@ -122,40 +122,12 @@ def main() -> None:
         display.boot_fail('AUDIO')
 
     # ------------------------------------------------------------------
-    # Phase 2 — VESC Gauche /dev/ttyACM0
+    # Phase 2 — VESC + Moteur dôme (non branchés — marquer désactivé)
     # ------------------------------------------------------------------
-    # display.boot_item('VESC_G')
-    # vesc_g = VescDriver(port='/dev/ttyACM0')
-    # if vesc_g.setup():
-    #     uart.register_callback('M', vesc_g.handle_uart)
-    #     watchdog.register_stop_callback(vesc_g.stop)
-    #     display.boot_ok('VESC_G')
-    # else:
-    #     log.warning("VESC Gauche indisponible")
-    #     display.boot_fail('VESC_G')
-
-    # ------------------------------------------------------------------
-    # Phase 2 — VESC Droite /dev/ttyACM1
-    # ------------------------------------------------------------------
-    # display.boot_item('VESC_D')
-    # vesc_d = VescDriver(port='/dev/ttyACM1')
-    # if vesc_d.setup():
-    #     display.boot_ok('VESC_D')
-    # else:
-    #     log.warning("VESC Droite indisponible")
-    #     display.boot_fail('VESC_D')
-
-    # ------------------------------------------------------------------
-    # Phase 2 — Moteur dôme DC (Motor Driver HAT I2C 0x40)
-    # ------------------------------------------------------------------
-    # display.boot_item('DOME')
-    # dome = DomeMotorDriver()
-    # if dome.setup():
-    #     uart.register_callback('D', dome.handle_uart)
-    #     display.boot_ok('DOME')
-    # else:
-    #     log.warning("DomeMotorDriver indisponible")
-    #     display.boot_fail('DOME')
+    display.boot_fail('VESC_G')   # non branché Phase 1
+    display.boot_fail('VESC_D')   # non branché Phase 1
+    display.boot_fail('DOME')     # non branché Phase 1
+    display.boot_fail('BT_CTRL')  # optionnel Phase 4
 
     # ------------------------------------------------------------------
     # Phase 2 — Servos body (PCA9685 I2C 0x41)

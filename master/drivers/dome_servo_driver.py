@@ -4,12 +4,6 @@ Pilote directement le PCA9685 I2C @ 0x40 (Servo Driver HAT sur le Master).
 11 servos pour les panneaux du dôme, canaux 0–10.
 
 Pulse: 1000µs (fermé) → 1500µs (ouvert ≈ 45°).
-
-Activation Phase 2:
-  1. Brancher Servo Driver HAT sur I2C (GPIO 2/3, adresse 0x40)
-  2. Décommenter l'import dans master/main.py
-  3. Appeler dome_servo.setup() dans main()
-  4. Enregistrer dans registry: reg.dome_servo = dome_servo
 """
 
 import logging
@@ -26,11 +20,9 @@ log = logging.getLogger(__name__)
 PCA9685_ADDRESS = 0x40
 PCA9685_FREQ_HZ = 50
 
-# Pulse fermé/ouvert — ~45° de débattement, safe pour SG90
 PULSE_CLOSED_US = 1000  # ~45° (position fermée)
-PULSE_OPEN_US   = 1500  # ~90° (position ouverte = +45°)
+PULSE_OPEN_US   = 1500  # ~90° (position ouverte ≈ +45°)
 
-# 11 panneaux dôme, canaux 0–10
 SERVO_MAP: dict[str, tuple[int, int, int]] = {
     'dome_panel_1':  (0,  PULSE_CLOSED_US, PULSE_OPEN_US),
     'dome_panel_2':  (1,  PULSE_CLOSED_US, PULSE_OPEN_US),
@@ -47,16 +39,15 @@ SERVO_MAP: dict[str, tuple[int, int, int]] = {
 
 
 class DomeServoDriver(BaseDriver):
-    """
-    Pilote servos dôme via PCA9685 I2C @ 0x40 (local Master).
-    """
 
     def __init__(self, i2c_address: int = PCA9685_ADDRESS):
-        self._address  = i2c_address
-        self._pca      = None
-        self._ready    = False
-        self._lock     = threading.Lock()
-        self._positions: dict[str, float] = {n: 0.0 for n in SERVO_MAP}
+        self._address       = i2c_address
+        self._pca           = None
+        self._ready         = False
+        self._lock          = threading.Lock()
+        self._positions:     dict[str, float]          = {n: 0.0 for n in SERVO_MAP}
+        self._current_pulse: dict[int, float]          = {}
+        self._cancel_events: dict[int, threading.Event] = {}
 
     def setup(self) -> bool:
         try:
@@ -67,6 +58,12 @@ class DomeServoDriver(BaseDriver):
             i2c = busio.I2C(board.SCL, board.SDA)
             self._pca = PCA9685(i2c, address=self._address)
             self._pca.frequency = PCA9685_FREQ_HZ
+
+            # Initialiser tous les canaux en position fermée
+            for name, (channel, pulse_min, pulse_max) in SERVO_MAP.items():
+                self._current_pulse[channel] = float(pulse_min)
+                self._set_pulse_raw(channel, float(pulse_min))
+
             self._ready = True
             log.info(f"DomeServoDriver prêt — PCA9685 @ 0x{self._address:02X}, "
                      f"{len(SERVO_MAP)} panneaux dôme")
@@ -79,14 +76,20 @@ class DomeServoDriver(BaseDriver):
             return False
 
     def shutdown(self) -> None:
+        # Annuler tous les mouvements en cours
+        for evt in self._cancel_events.values():
+            evt.set()
         if self._pca:
             for name in SERVO_MAP:
-                self.close(name, duration_ms=300)
-            time.sleep(0.4)
+                _, channel, _ = SERVO_MAP[name][0], SERVO_MAP[name][0], SERVO_MAP[name][2]
+                channel = SERVO_MAP[name][0]
+                pulse_min = SERVO_MAP[name][1]
+                self._set_pulse_raw(channel, float(pulse_min))
+            time.sleep(0.3)
             try:
                 import smbus2
                 b = smbus2.SMBus(1)
-                b.write_byte_data(self._address, 0x00, 0x10)  # SLEEP
+                b.write_byte_data(self._address, 0x00, 0x10)  # MODE1 SLEEP
                 b.close()
             except Exception as e:
                 log.warning(f"Erreur sleep PCA9685 dôme: {e}")
@@ -99,17 +102,7 @@ class DomeServoDriver(BaseDriver):
     # API publique
     # ------------------------------------------------------------------
 
-    def move(self, name: str, position: float,
-             duration_ms: int = 500) -> bool:
-        """
-        Déplace un panneau dôme.
-
-        Parameters
-        ----------
-        name       : nom du panneau (dans SERVO_MAP)
-        position   : float [0.0=fermé … 1.0=ouvert]
-        duration_ms: durée du mouvement (ms)
-        """
+    def move(self, name: str, position: float, duration_ms: int = 500) -> bool:
         if not self._ready:
             return False
         if name not in SERVO_MAP:
@@ -120,31 +113,37 @@ class DomeServoDriver(BaseDriver):
         self._positions[name] = position
         channel, pulse_min, pulse_max = SERVO_MAP[name]
 
+        # Annuler le mouvement en cours sur ce canal
+        if channel in self._cancel_events:
+            self._cancel_events[channel].set()
+
+        target_pulse  = pulse_min + (pulse_max - pulse_min) * position
+        start_pulse   = self._current_pulse.get(channel, float(pulse_min))
+        cancel_evt    = threading.Event()
+        self._cancel_events[channel] = cancel_evt
+
         if duration_ms <= 0:
-            self._set_pulse(channel, pulse_min, pulse_max, position)
+            self._set_pulse_raw(channel, target_pulse)
+            self._current_pulse[channel] = target_pulse
         else:
             threading.Thread(
                 target=self._smooth_move,
-                args=(channel, pulse_min, pulse_max, position, duration_ms),
+                args=(channel, start_pulse, target_pulse, duration_ms, cancel_evt),
                 daemon=True
             ).start()
         return True
 
     def open(self, name: str, duration_ms: int = 500) -> bool:
-        """Ouvre un panneau dôme (position 1.0)."""
         return self.move(name, 1.0, duration_ms)
 
     def close(self, name: str, duration_ms: int = 500) -> bool:
-        """Ferme un panneau dôme (position 0.0)."""
         return self.move(name, 0.0, duration_ms)
 
     def open_all(self, duration_ms: int = 500) -> None:
-        """Ouvre tous les panneaux dôme."""
         for name in SERVO_MAP:
             self.open(name, duration_ms)
 
     def close_all(self, duration_ms: int = 500) -> None:
-        """Ferme tous les panneaux dôme."""
         for name in SERVO_MAP:
             self.close(name, duration_ms)
 
@@ -156,9 +155,7 @@ class DomeServoDriver(BaseDriver):
     # Interne
     # ------------------------------------------------------------------
 
-    def _set_pulse(self, channel: int, pulse_min: int,
-                   pulse_max: int, position: float) -> None:
-        pulse_us = pulse_min + (pulse_max - pulse_min) * position
+    def _set_pulse_raw(self, channel: int, pulse_us: float) -> None:
         tick = int((pulse_us / 20000.0) * 4096)
         with self._lock:
             try:
@@ -166,11 +163,15 @@ class DomeServoDriver(BaseDriver):
             except Exception as e:
                 log.error(f"Erreur PWM canal dôme {channel}: {e}")
 
-    def _smooth_move(self, channel: int, pulse_min: int, pulse_max: int,
-                     target: float, duration_ms: int) -> None:
+    def _smooth_move(self, channel: int, start_pulse: float, target_pulse: float,
+                     duration_ms: int, cancel_evt: threading.Event) -> None:
+        """Interpolation depuis position courante vers target — annulable."""
         steps    = max(10, duration_ms // 20)
         interval = duration_ms / 1000.0 / steps
         for i in range(steps + 1):
-            pos = i / steps * target
-            self._set_pulse(channel, pulse_min, pulse_max, pos)
+            if cancel_evt.is_set():
+                return  # nouvelle commande reçue — abandonner ce mouvement
+            pulse = start_pulse + (target_pulse - start_pulse) * (i / steps)
+            self._set_pulse_raw(channel, pulse)
+            self._current_pulse[channel] = pulse
             time.sleep(interval)

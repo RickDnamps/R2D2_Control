@@ -60,10 +60,12 @@ class BodyServoDriver(BaseDriver):
     """
 
     def __init__(self, i2c_address: int = PCA9685_ADDRESS):
-        self._address = i2c_address
-        self._pca     = None
-        self._ready   = False
-        self._lock    = threading.Lock()
+        self._address        = i2c_address
+        self._pca            = None
+        self._ready          = False
+        self._lock           = threading.Lock()
+        self._current_pulse: dict[int, float]           = {}
+        self._cancel_events: dict[int, threading.Event] = {}
 
     def setup(self) -> bool:
         try:
@@ -74,6 +76,12 @@ class BodyServoDriver(BaseDriver):
             i2c = busio.I2C(board.SCL, board.SDA)
             self._pca = PCA9685(i2c, address=self._address)
             self._pca.frequency = PCA9685_FREQ_HZ
+
+            # Initialiser tous les canaux en position fermée
+            for name, (channel, pulse_min, pulse_max) in SERVO_MAP.items():
+                self._current_pulse[channel] = float(pulse_min)
+                self._set_pulse_raw(channel, float(pulse_min))
+
             self._ready = True
             log.info(f"BodyServoDriver prêt — PCA9685 @ 0x{self._address:02X}, "
                      f"{len(SERVO_MAP)} servos configurés")
@@ -86,12 +94,13 @@ class BodyServoDriver(BaseDriver):
             return False
 
     def shutdown(self) -> None:
+        # Annuler tous les mouvements en cours
+        for evt in self._cancel_events.values():
+            evt.set()
         if self._pca:
-            for name in SERVO_MAP:
-                self.move(name, 0.0, duration_ms=300)
-            time.sleep(0.4)
-            # smbus2 SLEEP — seule méthode fiable pour couper l'oscillateur PCA9685
-            # pca.deinit() appelle reset() qui ne coupe PAS le PWM
+            for channel, pulse_min in [(SERVO_MAP[n][0], SERVO_MAP[n][1]) for n in SERVO_MAP]:
+                self._set_pulse_raw(channel, float(pulse_min))
+            time.sleep(0.3)
             try:
                 import smbus2
                 b = smbus2.SMBus(1)
@@ -109,15 +118,6 @@ class BodyServoDriver(BaseDriver):
     # ------------------------------------------------------------------
 
     def move(self, name: str, position: float, duration_ms: int = 500) -> None:
-        """
-        Déplace un servo.
-
-        Parameters
-        ----------
-        name       : nom du servo (dans SERVO_MAP)
-        position   : float [0.0 … 1.0]
-        duration_ms: durée du mouvement (ms) — 0 = instantané
-        """
         if not self._ready:
             return
         if name not in SERVO_MAP:
@@ -127,26 +127,30 @@ class BodyServoDriver(BaseDriver):
         channel, pulse_min, pulse_max = SERVO_MAP[name]
         position = max(0.0, min(1.0, position))
 
+        # Annuler le mouvement en cours sur ce canal
+        if channel in self._cancel_events:
+            self._cancel_events[channel].set()
+
+        target_pulse = pulse_min + (pulse_max - pulse_min) * position
+        start_pulse  = self._current_pulse.get(channel, float(pulse_min))
+        cancel_evt   = threading.Event()
+        self._cancel_events[channel] = cancel_evt
+
         if duration_ms <= 0:
-            self._set_pulse(channel, pulse_min, pulse_max, position)
+            self._set_pulse_raw(channel, target_pulse)
+            self._current_pulse[channel] = target_pulse
         else:
-            # Mouvement progressif dans un thread dédié
             threading.Thread(
                 target=self._smooth_move,
-                args=(channel, pulse_min, pulse_max, position, duration_ms),
+                args=(channel, start_pulse, target_pulse, duration_ms, cancel_evt),
                 daemon=True
             ).start()
 
     def handle_uart(self, value: str) -> None:
-        """
-        Callback UART pour message SRV:NAME,POSITION,DURATION.
-        """
+        """Callback UART pour message SRV:NAME,POSITION,DURATION."""
         try:
             parts = value.split(',')
-            name        = parts[0]
-            position    = float(parts[1])
-            duration_ms = int(parts[2])
-            self.move(name, position, duration_ms)
+            self.move(parts[0], float(parts[1]), int(parts[2]))
         except (ValueError, IndexError) as e:
             log.error(f"Message SRV: invalide {value!r}: {e}")
 
@@ -154,25 +158,23 @@ class BodyServoDriver(BaseDriver):
     # Interne
     # ------------------------------------------------------------------
 
-    def _set_pulse(self, channel: int, pulse_min: int,
-                   pulse_max: int, position: float) -> None:
-        """Envoie la valeur PWM au canal PCA9685."""
-        pulse_us = pulse_min + (pulse_max - pulse_min) * position
-        # Conversion µs → valeur 12-bit PCA9685 à 50Hz
-        # Période = 20ms = 20000µs → 4096 ticks
+    def _set_pulse_raw(self, channel: int, pulse_us: float) -> None:
         tick = int((pulse_us / 20000.0) * 4096)
         with self._lock:
             try:
-                self._pca.channels[channel].duty_cycle = tick << 4  # 16-bit
+                self._pca.channels[channel].duty_cycle = tick << 4
             except Exception as e:
                 log.error(f"Erreur PWM canal {channel}: {e}")
 
-    def _smooth_move(self, channel: int, pulse_min: int, pulse_max: int,
-                     target: float, duration_ms: int) -> None:
-        """Interpolation linéaire sur duration_ms."""
-        steps    = max(10, duration_ms // 20)  # ~50 fps
+    def _smooth_move(self, channel: int, start_pulse: float, target_pulse: float,
+                     duration_ms: int, cancel_evt: threading.Event) -> None:
+        """Interpolation depuis position courante vers target — annulable."""
+        steps    = max(10, duration_ms // 20)
         interval = duration_ms / 1000.0 / steps
         for i in range(steps + 1):
-            pos = i / steps * target
-            self._set_pulse(channel, pulse_min, pulse_max, pos)
+            if cancel_evt.is_set():
+                return  # nouvelle commande reçue — abandonner
+            pulse = start_pulse + (target_pulse - start_pulse) * (i / steps)
+            self._set_pulse_raw(channel, pulse)
+            self._current_pulse[channel] = pulse
             time.sleep(interval)
