@@ -29,9 +29,9 @@ PRE_SCALE_REG    = 0xFE
 # Prescale 50Hz : round(25_000_000 / (4096 * 50)) - 1 = 121
 PRE_SCALE_50HZ   = 121
 
-PULSE_STOP_US    = 1500
-PULSE_OPEN_US    = 1700   # SG90 continu — ~30% vitesse, contrôlé
-PULSE_CLOSED_US  = 1300   # sens inverse — à calibrer selon mécanisme
+PULSE_STOP_US    = 1700   # point d'arrêt réel de ces SG90 (calibré)
+PULSE_OPEN_US    = 1800   # 100µs au-dessus du stop → lent, contrôlé
+PULSE_CLOSED_US  = 1600   # 100µs en-dessous du stop → lent, contrôlé
 
 SERVO_MAP: dict[str, int] = {
     'dome_panel_1':   0,
