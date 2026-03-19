@@ -30,8 +30,8 @@ import master.registry as reg
 # ---- Phase 2 — Décommenter pour activer ----
 # from master.drivers.vesc_driver        import VescDriver
 # from master.drivers.dome_motor_driver  import DomeMotorDriver
-from master.drivers.body_servo_driver  import BodyServoDriver
-from master.drivers.dome_servo_driver  import DomeServoDriver
+# from master.drivers.body_servo_driver  import BodyServoDriver
+# from master.drivers.dome_servo_driver  import DomeServoDriver
 
 # ---- Phase 3 — Décommenter pour activer ----
 # from master.script_engine import ScriptEngine
@@ -131,10 +131,11 @@ def main() -> None:
     # if vesc.setup(): reg.vesc = vesc
     # if dome.setup(): reg.dome = dome
 
-    servo      = BodyServoDriver(uart)
-    dome_servo = DomeServoDriver()
-    if servo.setup():      reg.servo      = servo
-    if dome_servo.setup(): reg.dome_servo = dome_servo
+    # Phase 2 — décommenter quand hardware servo validé :
+    # servo      = BodyServoDriver(uart)
+    # dome_servo = DomeServoDriver()
+    # if servo.setup():      reg.servo      = servo
+    # if dome_servo.setup(): reg.dome_servo = dome_servo
 
     # ------------------------------------------------------------------
     # Phase 3 — Moteur de scripts
@@ -207,8 +208,8 @@ def main() -> None:
         teeces.shutdown()
         # Phase 2: if reg.vesc:  reg.vesc.shutdown()
         # Phase 2: if reg.dome:  reg.dome.shutdown()
-        if reg.servo:       reg.servo.shutdown()
-        if reg.dome_servo:  reg.dome_servo.shutdown()
+        # Phase 2: if reg.servo:      reg.servo.shutdown()
+        # Phase 2: if reg.dome_servo: reg.dome_servo.shutdown()
         # Phase 3: if reg.engine: reg.engine.stop_all()
         log.info("Master arrêté proprement")
         sys.exit(0)
