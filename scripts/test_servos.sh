@@ -75,10 +75,10 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-python3 $REPO/scripts/test_servo_master.py standard 2>&1 | sed 's/^/[MASTER] /' &
+python3 -u $REPO/scripts/test_servo_master.py standard 2>&1 | sed 's/^/[MASTER] /' &
 MASTER_PID=$!
 
-ssh $SLAVE "python3 $REPO/scripts/test_servo_slave.py standard 2>&1" | sed 's/^/[SLAVE]  /' &
+ssh $SLAVE "python3 -u $REPO/scripts/test_servo_slave.py standard 2>&1" | sed 's/^/[SLAVE]  /' &
 SLAVE_PID=$!
 
 wait $MASTER_PID $SLAVE_PID

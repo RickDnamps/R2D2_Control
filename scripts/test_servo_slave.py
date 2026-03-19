@@ -33,12 +33,14 @@ def set_pulse(us):
     pca.channels[0].duty_cycle = us_to_duty(us)
 
 def stop():
-    set_pulse(1500)        # centre
+    set_pulse(1500)
     time.sleep(0.3)
-    pca.channels[0].duty_cycle = 0   # coupe signal
-    pca.mode1 = pca.mode1 | 0x10     # SLEEP — arrête l'oscillateur PWM
-    pca.deinit()
-    print("STOP")
+    # Sleep mode direct via smbus2 — arrête l'oscillateur sans reset()
+    import smbus2
+    b = smbus2.SMBus(1)
+    b.write_byte_data(0x41, 0x00, 0x10)
+    b.close()
+    print("STOP", flush=True)
 
 try:
     if MODE == "continu":
