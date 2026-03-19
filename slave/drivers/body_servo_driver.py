@@ -28,8 +28,8 @@ PRE_SCALE_REG    = 0xFE
 PRE_SCALE_50HZ   = 121
 
 PULSE_STOP_US    = 1700   # point d'arrêt réel de ces SG90 (calibré)
-PULSE_OPEN_US    = 1800   # 100µs au-dessus du stop → lent, contrôlé
-PULSE_CLOSED_US  = 1600   # 100µs en-dessous du stop → lent, contrôlé
+PULSE_OPEN_US    = 2000   # pleine vitesse sens 1
+PULSE_CLOSED_US  = 1000   # pleine vitesse sens 2
 
 SERVO_MAP: dict[str, int] = {
     'body_panel_1':   0,
