@@ -143,7 +143,7 @@ class VirtualJoystick {
     this.active = false;
     this.x = 0;
     this.y = 0;
-    this._keepAlive = null;
+    this._keepAlive = null;  // timer keep-alive watchdog Master
     this._bind();
   }
 
@@ -162,6 +162,8 @@ class VirtualJoystick {
     this.active = true;
     this.ring.classList.add('active');
     this._move(ptr);
+    // Keep-alive : renvoie la position courante toutes les 200ms pendant que
+    // le joystick est tenu immobile — alimente le MotionWatchdog côté Master.
     this._keepAlive = setInterval(() => {
       if (this.active) this.onMove(this.x, this.y);
     }, 200);
@@ -1090,12 +1092,15 @@ async function loadAudioCategories() {
 // ================================================================
 
 function startAppHeartbeat() {
-  const base = window.R2D2_API_BASE || '';
+  // Envoi POST /heartbeat toutes les 200ms tant que la page est active
   setInterval(() => {
+    const base = window.R2D2_API_BASE || '';
     fetch(base + '/heartbeat', { method: 'POST' }).catch(() => {});
   }, 200);
 
+  // Stop d'urgence si l'onglet / l'app se ferme
   window.addEventListener('beforeunload', () => {
+    const base = window.R2D2_API_BASE || '';
     fetch(base + '/motion/stop', { method: 'POST', keepalive: true }).catch(() => {});
     fetch(base + '/motion/dome/stop', { method: 'POST', keepalive: true }).catch(() => {});
   });

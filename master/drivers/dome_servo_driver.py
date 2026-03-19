@@ -20,8 +20,9 @@ log = logging.getLogger(__name__)
 PCA9685_ADDRESS = 0x40
 PCA9685_FREQ_HZ = 50
 
-PULSE_CLOSED_US = 1000  # ~45° (position fermée)
-PULSE_OPEN_US   = 1500  # ~90° (position ouverte ≈ +45°)
+# SG90 — plage testée et validée : 1000µs (45°) → 2000µs (135°) = 90° de débattement
+PULSE_CLOSED_US = 1000  # 45°  (position fermée)
+PULSE_OPEN_US   = 2000  # 135° (position ouverte) — validé test_servo_master.py
 
 SERVO_MAP: dict[str, tuple[int, int, int]] = {
     'dome_panel_1':  (0,  PULSE_CLOSED_US, PULSE_OPEN_US),
