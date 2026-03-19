@@ -63,10 +63,11 @@ def get_status():
         'heartbeat_ok': heartbeat_ok,   # App ↔ Master
         'uart_ready':   uart_ready,     # Master ↔ Slave UART
         'app_hb_age_ms': app_watchdog.last_hb_age_ms,
-        'teeces_ready': bool(reg.teeces and reg.teeces.is_ready()),
-        'vesc_ready':   bool(reg.vesc   and reg.vesc.is_ready()),
-        'dome_ready':   bool(reg.dome   and reg.dome.is_ready()),
-        'servo_ready':  bool(reg.servo  and reg.servo.is_ready()),
+        'teeces_ready':     bool(reg.teeces     and reg.teeces.is_ready()),
+        'vesc_ready':       bool(reg.vesc       and reg.vesc.is_ready()),
+        'dome_ready':       bool(reg.dome       and reg.dome.is_ready()),
+        'servo_ready':      bool(reg.servo      and reg.servo.is_ready()),
+        'dome_servo_ready': bool(reg.dome_servo and reg.dome_servo.is_ready()),
         'scripts_running': reg.engine.list_running() if reg.engine else [],
     })
 

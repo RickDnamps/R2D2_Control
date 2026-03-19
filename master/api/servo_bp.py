@@ -139,8 +139,9 @@ def dome_open():
     duration = int(body.get('duration', 500))
     if not name:
         return jsonify({'error': 'Champ "name" requis'}), 400
-    if reg.dome_servo:
-        reg.dome_servo.open(name, duration)
+    if not reg.dome_servo:
+        return jsonify({'error': 'dome_servo driver non prêt — voir logs master'}), 503
+    reg.dome_servo.open(name, duration)
     return jsonify({'status': 'ok', 'name': name})
 
 
@@ -151,8 +152,9 @@ def dome_close():
     duration = int(body.get('duration', 500))
     if not name:
         return jsonify({'error': 'Champ "name" requis'}), 400
-    if reg.dome_servo:
-        reg.dome_servo.close(name, duration)
+    if not reg.dome_servo:
+        return jsonify({'error': 'dome_servo driver non prêt — voir logs master'}), 503
+    reg.dome_servo.close(name, duration)
     return jsonify({'status': 'ok', 'name': name})
 
 
