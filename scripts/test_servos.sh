@@ -40,12 +40,12 @@ ssh $SLAVE "python3 -c 'import adafruit_pca9685' 2>/dev/null && echo '✓ adafru
 # ──────────────────────────────────────────────
 # Abort si I2C manquant
 # ──────────────────────────────────────────────
-if ! echo "$I2C_MASTER" | grep -q "40:"; then
+if ! echo "$I2C_MASTER" | grep -q "40"; then
     echo ""
     echo "✗ Test annulé — PCA9685 Master non détecté"
     exit 1
 fi
-if ! echo "$I2C_SLAVE" | grep -q "41:"; then
+if ! echo "$I2C_SLAVE" | grep -q "41"; then
     echo ""
     echo "✗ Test annulé — PCA9685 Slave non détecté"
     exit 1
