@@ -26,9 +26,10 @@ function escapeHtml(s) {
 
 async function api(endpoint, method = 'GET', body = null) {
   try {
+    const base = window.R2D2_API_BASE || '';
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(endpoint, opts);
+    const res = await fetch(base + endpoint, opts);
     const data = await res.json();
     return data;
   } catch (e) {

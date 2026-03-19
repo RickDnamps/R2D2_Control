@@ -96,6 +96,11 @@ class MainActivity : AppCompatActivity() {
             }
             override fun onPageFinished(v: WebView?, u: String?) {
                 binding.loadingOverlay.visibility = View.GONE
+                // Injecter l'URL du Master avant que init() tourne
+                val prefs = getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
+                val host  = prefs.getString(PREF_HOST, DEFAULT_HOST) ?: DEFAULT_HOST
+                val port  = prefs.getInt("port", DEFAULT_PORT)
+                v?.evaluateJavascript("window.R2D2_API_BASE='http://$host:$port';", null)
             }
             override fun onReceivedError(v: WebView?, r: WebResourceRequest?, e: WebResourceError?) {
                 if (r?.isForMainFrame == true) binding.loadingOverlay.visibility = View.GONE
