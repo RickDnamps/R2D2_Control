@@ -1,21 +1,13 @@
 """
 Slave Body Servo Driver — Phase 2.
-Reçoit les commandes SRV: du Master et pilote le PCA9685 I2C.
+Reçoit les commandes SRV: du Master et pilote le PCA9685 I2C @ 0x41.
 
-Format UART reçu: SRV:NAME,POSITION,DURATION
-  NAME     : nom du servo
-  POSITION : float [0.0 … 1.0]
-  DURATION : int millisecondes
+Servo continu : 1500µs=STOP, 1600µs=ouverture lente, 1400µs=fermeture lente.
+open()  → envoie PULSE_OPEN_US  pendant duration_ms → STOP automatique
+close() → envoie PULSE_CLOSED_US pendant duration_ms → STOP automatique
 
-Configuration des canaux PCA9685 dans SERVO_MAP ci-dessous.
-Fréquence PWM: 50 Hz (standard servo).
-Pulse: 1000µs (fermé) à 2000µs (ouvert) — ajuster par servo.
-
-Activation Phase 2:
-  1. Brancher PCA9685 sur I2C (GPIO 2/3, adresse 0x40)
-  2. Décommenter l'import dans slave/main.py
-  3. Appeler servo.setup() dans main()
-  4. uart.register_callback('SRV', servo.handle_uart)
+Formule duty_cycle identique au script de test validé :
+    duty = int((pulse_us / 20000.0) * 65535)
 """
 
 import logging
@@ -32,84 +24,89 @@ log = logging.getLogger(__name__)
 PCA9685_ADDRESS = 0x41
 PCA9685_FREQ_HZ = 50
 
-# Servo continu (SG90 ou équivalent)
-# 1500µs = STOP, < 1500 = sens fermeture, > 1500 = sens ouverture
-PULSE_STOP_US   = 1500  # arrêt absolu
-PULSE_OPEN_US   = 1600  # ouverture lente (ajuster si trop vite/lent)
-PULSE_CLOSED_US = 1400  # fermeture lente (ajuster si trop vite/lent)
+# Servo continu — valeurs calquées sur test_servo_slave.py validé
+PULSE_STOP_US   = 1500  # STOP absolu
+PULSE_OPEN_US   = 1600  # ouverture lente (ajuster vers 1550 si trop vite)
+PULSE_CLOSED_US = 1400  # fermeture lente (ajuster vers 1450 si trop vite)
 
-# 11 panneaux body, canaux 0–10
-# Mapping nom → (channel, pulse_min_us, pulse_max_us)
-# pulse_min = position fermée, pulse_max = position ouverte
-SERVO_MAP: dict[str, tuple[int, int, int]] = {
-    'body_panel_1':  (0,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_2':  (1,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_3':  (2,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_4':  (3,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_5':  (4,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_6':  (5,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_7':  (6,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_8':  (7,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_9':  (8,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_10': (9,  PULSE_CLOSED_US, PULSE_OPEN_US),
-    'body_panel_11': (10, PULSE_CLOSED_US, PULSE_OPEN_US),
+# Canaux 0–10 → body_panel_1..11
+SERVO_MAP: dict[str, int] = {
+    'body_panel_1':   0,
+    'body_panel_2':   1,
+    'body_panel_3':   2,
+    'body_panel_4':   3,
+    'body_panel_5':   4,
+    'body_panel_6':   5,
+    'body_panel_7':   6,
+    'body_panel_8':   7,
+    'body_panel_9':   8,
+    'body_panel_10':  9,
+    'body_panel_11': 10,
 }
 
 
+def _us_to_duty(pulse_us: float) -> int:
+    """Même formule que test_servo_slave.py — confirmée fonctionnelle."""
+    return int((pulse_us / 20000.0) * 65535)
+
+
 class BodyServoDriver(BaseDriver):
-    """
-    Pilote servos body via PCA9685 I2C.
-    """
 
     def __init__(self, i2c_address: int = PCA9685_ADDRESS):
-        self._address        = i2c_address
-        self._pca            = None
-        self._ready          = False
-        self._lock           = threading.Lock()
-        self._current_pulse: dict[int, float]           = {}
+        self._address       = i2c_address
+        self._pca           = None
+        self._ready         = False
+        self._lock          = threading.Lock()
         self._cancel_events: dict[int, threading.Event] = {}
 
     def setup(self) -> bool:
         try:
-            import board
-            import busio
+            import board, busio
             from adafruit_pca9685 import PCA9685
+
+            # Réveiller le chip explicitement (peut être en sleep après estop.py)
+            try:
+                import smbus2
+                b = smbus2.SMBus(1)
+                b.write_byte_data(self._address, 0x00, 0x00)  # MODE1 = normal
+                b.close()
+                time.sleep(0.005)
+            except Exception:
+                pass
 
             i2c = busio.I2C(board.SCL, board.SDA)
             self._pca = PCA9685(i2c, address=self._address)
             self._pca.frequency = PCA9685_FREQ_HZ
-            # Forcer FULL OFF sur tous les 16 canaux — efface les valeurs résiduelles
-            # du chip (le PCA9685 garde ses registres PWM en mémoire entre les restarts
-            # de service, sans power cycle). duty_cycle=0 active le bit FULL OFF.
+
+            # FULL OFF sur tous les canaux — efface valeurs résiduelles du chip
             for ch in range(16):
                 self._pca.channels[ch].duty_cycle = 0
 
             self._ready = True
-            log.info(f"BodyServoDriver prêt — PCA9685 @ 0x{self._address:02X}, "
-                     f"{len(SERVO_MAP)} servos configurés")
+            log.info("BodyServoDriver prêt — PCA9685 @ 0x%02X, %d servos",
+                     self._address, len(SERVO_MAP))
             return True
         except ImportError:
             log.error("adafruit-circuitpython-pca9685 non installé")
             return False
         except Exception as e:
-            log.error(f"Erreur init PCA9685: {e}")
+            log.error("Erreur init PCA9685 body: %s", e)
             return False
 
     def shutdown(self) -> None:
-        # Annuler tous les mouvements en cours
         for evt in self._cancel_events.values():
             evt.set()
         if self._pca:
-            for name in SERVO_MAP:
-                self._set_pulse_raw(SERVO_MAP[name][0], float(PULSE_STOP_US))
+            for ch in SERVO_MAP.values():
+                self._set_pulse(ch, PULSE_STOP_US)
             time.sleep(0.3)
             try:
                 import smbus2
                 b = smbus2.SMBus(1)
-                b.write_byte_data(self._address, 0x00, 0x10)  # MODE1 SLEEP
+                b.write_byte_data(self._address, 0x00, 0x10)  # SLEEP
                 b.close()
             except Exception as e:
-                log.warning(f"Erreur sleep PCA9685 body: {e}")
+                log.warning("Erreur sleep PCA9685 body: %s", e)
         self._ready = False
 
     def is_ready(self) -> bool:
@@ -119,28 +116,61 @@ class BodyServoDriver(BaseDriver):
     # API publique
     # ------------------------------------------------------------------
 
+    def open(self, name: str, duration_ms: int = 500) -> None:
+        self._move(name, PULSE_OPEN_US, duration_ms)
+
+    def close(self, name: str, duration_ms: int = 500) -> None:
+        self._move(name, PULSE_CLOSED_US, duration_ms)
+
+    def open_all(self, duration_ms: int = 500) -> None:
+        for name in SERVO_MAP:
+            self.open(name, duration_ms)
+
+    def close_all(self, duration_ms: int = 500) -> None:
+        for name in SERVO_MAP:
+            self.close(name, duration_ms)
+
     def move(self, name: str, position: float, duration_ms: int = 500) -> None:
+        """position 1.0 = open, 0.0 = close."""
+        if position >= 0.5:
+            self.open(name, duration_ms)
+        else:
+            self.close(name, duration_ms)
+
+    def handle_uart(self, value: str) -> None:
+        """Callback UART — SRV:NAME,POSITION,DURATION"""
+        try:
+            parts = value.split(',')
+            self.move(parts[0], float(parts[1]), int(parts[2]))
+        except (ValueError, IndexError) as e:
+            log.error("Message SRV invalide %r: %s", value, e)
+
+    @property
+    def state(self) -> dict:
+        return {n: 'open' if n in self._cancel_events else 'closed'
+                for n in SERVO_MAP}
+
+    # ------------------------------------------------------------------
+    # Interne
+    # ------------------------------------------------------------------
+
+    def _move(self, name: str, pulse_us: int, duration_ms: int) -> None:
         if not self._ready:
             return
         if name not in SERVO_MAP:
-            log.warning(f"Servo inconnu: {name!r}")
+            log.warning("Servo inconnu: %r", name)
             return
+        channel = SERVO_MAP[name]
 
-        channel, pulse_min, pulse_max = SERVO_MAP[name]
-        position = max(0.0, min(1.0, position))
-
-        # Annuler le mouvement en cours sur ce canal
+        # Annuler mouvement précédent sur ce canal
         if channel in self._cancel_events:
             self._cancel_events[channel].set()
 
-        target_pulse = pulse_min + (pulse_max - pulse_min) * position
-        # Si position inconnue (premier mouvement), aller directement à la cible
-        start_pulse  = self._current_pulse.get(channel, target_pulse)
-        cancel_evt   = threading.Event()
+        cancel_evt = threading.Event()
         self._cancel_events[channel] = cancel_evt
 
-        self._set_pulse_raw(channel, target_pulse)
-        self._current_pulse[channel] = target_pulse
+        self._set_pulse(channel, pulse_us)
+
         if duration_ms > 0:
             threading.Thread(
                 target=self._timed_stop,
@@ -148,31 +178,18 @@ class BodyServoDriver(BaseDriver):
                 daemon=True
             ).start()
 
-    def handle_uart(self, value: str) -> None:
-        """Callback UART pour message SRV:NAME,POSITION,DURATION."""
-        try:
-            parts = value.split(',')
-            self.move(parts[0], float(parts[1]), int(parts[2]))
-        except (ValueError, IndexError) as e:
-            log.error(f"Message SRV: invalide {value!r}: {e}")
-
-    # ------------------------------------------------------------------
-    # Interne
-    # ------------------------------------------------------------------
-
-    def _set_pulse_raw(self, channel: int, pulse_us: float) -> None:
-        tick = int((pulse_us / 20000.0) * 4096)
+    def _set_pulse(self, channel: int, pulse_us: float) -> None:
+        """Formule identique à test_servo_slave.py."""
+        duty = _us_to_duty(pulse_us)
         with self._lock:
             try:
-                self._pca.channels[channel].duty_cycle = tick << 4
+                self._pca.channels[channel].duty_cycle = duty
             except Exception as e:
-                log.error(f"Erreur PWM canal {channel}: {e}")
+                log.error("Erreur PWM canal %d: %s", channel, e)
 
     def _timed_stop(self, channel: int, duration_ms: int,
                     cancel_evt: threading.Event) -> None:
-        """Attend duration_ms puis envoie STOP (1500µs) — servo continu."""
+        """Attend duration_ms puis envoie STOP — servo continu."""
         time.sleep(duration_ms / 1000.0)
-        if cancel_evt.is_set():
-            return  # nouvelle commande arrivée — elle gère son propre stop
-        self._set_pulse_raw(channel, float(PULSE_STOP_US))
-        self._current_pulse[channel] = float(PULSE_STOP_US)
+        if not cancel_evt.is_set():
+            self._set_pulse(channel, PULSE_STOP_US)
