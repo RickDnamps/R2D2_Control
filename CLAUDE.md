@@ -798,12 +798,33 @@ TX d'un côté = toujours sur RX de l'autre. Règle physique universelle.
 > ssh artoo@r2-slave.local "sudo systemctl stop r2d2-slave.service"
 > ```
 
-### Sécurité — MotionWatchdog ✅ Actif dès Phase 4
-- `master/motion_watchdog.py` — arrêt automatique si contrôleur déconnecté >800ms
-- Démarre dans `master/main.py` après Flask
-- `motion_bp.py` alimente le watchdog à chaque commande drive/dome
-- JS : keep-alive 200ms sur joystick (feed watchdog même si doigt immobile)
-- Chaîne complète : App →(800ms)→ MotionWatchdog →(UART stop)→ Slave →(500ms)→ WatchdogSlave →(PyVESC)→ Moteurs
+### Sécurité — 3 couches indépendantes ✅ Actives dès Phase 4
+
+| Fichier | Rôle | Timeout | Déclencheur |
+|---------|------|---------|-------------|
+| `master/app_watchdog.py` | Heartbeat App↔Master | **600ms** | App crash / perte WiFi / écran éteint |
+| `master/motion_watchdog.py` | Timeout commande drive | **800ms** | Plus de cmd drive pendant mouvement |
+| `slave/watchdog.py` | Heartbeat Master↔Slave | **500ms** | Master crash / UART coupé |
+
+**Arrêt progressif (`master/safe_stop.py`) :**
+- Ramp vitesse courante → 0 proportionnelle à la vitesse (max 400ms à vitesse 1.0)
+- Vitesse 0.5 → 200ms / vitesse <0.08 → arrêt immédiat
+- `cancel_ramp()` appelé à chaque nouvelle commande drive (reconnexion app)
+- Tous les watchdogs utilisent `safe_stop` — jamais de `M:0,0` brut pendant le mouvement
+
+**Heartbeat applicatif (`POST /heartbeat`) :**
+- App JS envoie `fetch('/heartbeat', {method:'POST'})` toutes les **200ms**
+- Android `onPause()` envoie stop natif HTTP (écran éteint → WebView figé)
+- `beforeunload` envoie stop + dome/stop (fermeture onglet navigateur)
+- `AppWatchdog.feed()` alimenté dans `status_bp.py`
+
+**Joystick keep-alive :**
+- `setInterval` 200ms pendant que joystick est tenu (doigt immobile = plus de touchmove)
+- `clearInterval` sur `_release()` pour éviter fuites mémoire
+
+**Pills dashboard :**
+- **HB** = `app_watchdog.is_connected` → heartbeat **App ↔ Master**
+- **UART** = serial `is_open` + `_running` → lien **Master ↔ Slave**
 
 ### Phase 2 — Propulsion & Actionneurs 🔧 Code prêt — décommenter
 - [ ] **2.1** Brancher VESC USB `/dev/ttyACM0/1` → décommenter dans `slave/main.py`
