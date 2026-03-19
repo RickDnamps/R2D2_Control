@@ -33,8 +33,8 @@ import master.registry as reg
 from master.drivers.body_servo_driver  import BodyServoDriver
 from master.drivers.dome_servo_driver  import DomeServoDriver
 
-# ---- Phase 3 — Décommenter pour activer ----
-# from master.script_engine import ScriptEngine
+# ---- Phase 3 ----
+from master.script_engine import ScriptEngine
 
 # ---- Phase 4 — Décommenter pour activer ----
 from master.flask_app import create_app
@@ -139,11 +139,12 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Phase 3 — Moteur de scripts
     # ------------------------------------------------------------------
-    # engine = ScriptEngine(
-    #     uart=uart, teeces=teeces,
-    #     vesc=reg.vesc, dome=reg.dome, servo=reg.servo
-    # )
-    # reg.engine = engine
+    engine = ScriptEngine(
+        uart=uart, teeces=teeces,
+        vesc=reg.vesc, dome=reg.dome,
+        servo=reg.servo, dome_servo=reg.dome_servo,
+    )
+    reg.engine = engine
 
     # Callbacks UART entrants
     def on_heartbeat_ack(value: str) -> None:
@@ -209,7 +210,7 @@ def main() -> None:
         # Phase 2: if reg.dome:  reg.dome.shutdown()
         if reg.servo:      reg.servo.shutdown()
         if reg.dome_servo: reg.dome_servo.shutdown()
-        # Phase 3: if reg.engine: reg.engine.stop_all()
+        if reg.engine: reg.engine.stop_all()
         log.info("Master arrêté proprement")
         sys.exit(0)
 

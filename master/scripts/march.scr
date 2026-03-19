@@ -1,0 +1,12 @@
+# March — Thème Star Wars + Teeces
+# Adapté de march.scr (dpoulson/r2_control) — Theme002 + rseries,40500
+sound,RANDOM,misc
+teeces,random
+sleep,3.0
+dome,turn,0.2
+sleep,5.0
+dome,turn,-0.2
+sleep,5.0
+dome,stop
+sleep,5.0
+teeces,off

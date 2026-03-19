@@ -1,0 +1,11 @@
+# Looping Sounds — Sons ambiants aléatoires en boucle (à lancer avec loop=true)
+# Adapté de looping_sounds.scr (dpoulson/r2_control)
+# Lancer depuis l'API : POST /scripts/run {"name":"looping_sounds","loop":true}
+sound,RANDOM,happy
+sleep,random,30,60
+sound,RANDOM,proc
+sleep,random,30,60
+sound,RANDOM,misc
+sleep,random,30,60
+sound,RANDOM,razz
+sleep,random,30,60

@@ -1,0 +1,30 @@
+# Ripple Dome — Panneaux s'ouvrent un par un, puis se ferment un par un
+# Adapté de ripple_dome.scr (dpoulson/r2_control)
+servo,dome_panel_9,1.0,300
+sleep,0.2
+servo,dome_panel_10,1.0,300
+sleep,0.2
+servo,dome_panel_11,1.0,300
+sleep,0.2
+servo,dome_panel_6,1.0,300
+sleep,0.2
+servo,dome_panel_7,1.0,300
+sleep,0.2
+servo,dome_panel_8,1.0,300
+sleep,0.2
+servo,dome_panel_5,1.0,300
+sleep,0.2
+servo,dome_panel_9,0.0,300
+sleep,0.2
+servo,dome_panel_10,0.0,300
+sleep,0.2
+servo,dome_panel_11,0.0,300
+sleep,0.2
+servo,dome_panel_6,0.0,300
+sleep,0.2
+servo,dome_panel_7,0.0,300
+sleep,0.2
+servo,dome_panel_8,0.0,300
+sleep,0.2
+servo,dome_panel_5,0.0,300
+sleep,0.2

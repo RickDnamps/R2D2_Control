@@ -1,0 +1,27 @@
+# Wolf Whistle — Sifflement + panel qui cligne
+# Adapté de wolfwhistle.scr (dpoulson/r2_control)
+sound,RANDOM,whistle
+sleep,0.3
+servo,dome_panel_1,1.0,300
+sleep,0.05
+servo,dome_panel_1,0.0,300
+sleep,0.1
+servo,dome_panel_1,1.0,300
+sleep,0.2
+servo,dome_panel_1,0.0,300
+sleep,0.2
+servo,dome_panel_1,1.0,300
+sleep,0.2
+servo,dome_panel_1,0.0,300
+sleep,0.1
+servo,dome_panel_1,1.0,300
+sleep,0.3
+servo,dome_panel_1,0.0,300
+sleep,0.2
+servo,dome_panel_1,1.0,300
+sleep,0.2
+servo,dome_panel_1,0.0,300
+sleep,0.2
+servo,dome_panel_1,1.0,300
+sleep,0.1
+servo,dome_panel_1,0.0,300

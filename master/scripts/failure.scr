@@ -1,0 +1,18 @@
+# Failure — R2 crie + panique + panneaux
+# Adapté de failure.scr (dpoulson/r2_control)
+sound,RANDOM,scream
+teeces,random
+dome,turn,0.7
+sleep,0.4
+dome,turn,-0.7
+sleep,0.4
+dome,turn,0.7
+sleep,0.4
+dome,stop
+servo,dome_panel_1,1.0,300
+servo,dome_panel_3,1.0,300
+sleep,0.3
+servo,dome_panel_1,0.0,300
+servo,dome_panel_3,0.0,300
+sleep,1.5
+teeces,off

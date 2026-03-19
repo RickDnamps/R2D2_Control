@@ -46,21 +46,23 @@ class ScriptEngine:
     """
 
     def __init__(self, uart=None, teeces=None,
-                 vesc=None, dome=None, servo=None):
+                 vesc=None, dome=None, servo=None, dome_servo=None):
         """
         Parameters
         ----------
-        uart    : UARTController  (pour envoyer S:, M:, D:, SRV:)
-        teeces  : TeecesController
-        vesc    : VescDriver (master-side)
-        dome    : DomeMotorDriver
-        servo   : BodyServoDriver (master-side)
+        uart       : UARTController  (pour envoyer S:, M:, D:, SRV:)
+        teeces     : TeecesController
+        vesc       : VescDriver (master-side)
+        dome       : DomeMotorDriver (rotation dôme DC)
+        servo      : BodyServoDriver (panneaux body via UART → Slave)
+        dome_servo : DomeServoDriver (panneaux dôme I2C direct sur Master)
         """
-        self._uart    = uart
-        self._teeces  = teeces
-        self._vesc    = vesc
-        self._dome    = dome
-        self._servo   = servo
+        self._uart       = uart
+        self._teeces     = teeces
+        self._vesc       = vesc
+        self._dome       = dome
+        self._servo      = servo
+        self._dome_servo = dome_servo
         self._running: dict[int, '_ScriptRunner'] = {}
         self._next_id = 1
         self._lock    = threading.Lock()
@@ -179,18 +181,30 @@ class ScriptEngine:
             self._dome.set_random(row[2].lower() == 'on')
 
     def _cmd_servo(self, row: list[str]) -> None:
-        if not self._servo:
-            return
         if row[1].lower() == 'all':
-            if row[2].lower() == 'open':
-                self._servo.open_all()
-            else:
-                self._servo.close_all()
+            action = row[2].lower() if len(row) > 2 else 'open'
+            if self._dome_servo:
+                if action == 'open':
+                    self._dome_servo.open_all()
+                else:
+                    self._dome_servo.close_all()
+            if self._servo:
+                if action == 'open':
+                    self._servo.open_all()
+                else:
+                    self._servo.close_all()
+            return
+
+        name     = row[1]
+        position = float(row[2]) if len(row) > 2 else 1.0
+        duration = int(row[3]) if len(row) > 3 else 300
+
+        if name.startswith('dome_panel_'):
+            if self._dome_servo:
+                self._dome_servo.move(name, position, duration)
         else:
-            name     = row[1]
-            position = float(row[2])
-            duration = int(row[3]) if len(row) > 3 else 500
-            self._servo.move(name, position, duration)
+            if self._servo:
+                self._servo.move(name, position, duration)
 
     def _cmd_motion(self, row: list[str]) -> None:
         if not self._vesc:

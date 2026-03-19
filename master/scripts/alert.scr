@@ -1,0 +1,13 @@
+# Alert — Son d'alarme + Teeces urgence + dôme qui se tourne
+# Adapté de alert.scr (dpoulson/r2_control)
+sound,RANDOM,alarm
+teeces,random
+dome,turn,0.5
+sleep,0.6
+dome,turn,-0.5
+sleep,0.6
+dome,turn,0.5
+sleep,0.6
+dome,stop
+sleep,1.0
+teeces,off
