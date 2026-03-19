@@ -154,6 +154,20 @@ class BodyServoDriver(BaseDriver):
     # Interne
     # ------------------------------------------------------------------
 
+    def _ensure_awake(self) -> None:
+        """Réveille le chip si en sleep (ex: après estop.py ou test_servos.sh)."""
+        try:
+            import smbus2
+            b = smbus2.SMBus(1)
+            mode1 = b.read_byte_data(self._address, 0x00)
+            if mode1 & 0x10:  # bit SLEEP actif
+                b.write_byte_data(self._address, 0x00, mode1 & ~0x10)
+                time.sleep(0.001)
+                log.info("PCA9685 @ 0x%02X réveillé (était en sleep)", self._address)
+            b.close()
+        except Exception:
+            pass
+
     def _move(self, name: str, pulse_us: int, duration_ms: int) -> None:
         if not self._ready:
             return
@@ -169,6 +183,7 @@ class BodyServoDriver(BaseDriver):
         cancel_evt = threading.Event()
         self._cancel_events[channel] = cancel_evt
 
+        self._ensure_awake()
         self._set_pulse(channel, pulse_us)
 
         if duration_ms > 0:
