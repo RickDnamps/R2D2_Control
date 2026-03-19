@@ -695,6 +695,32 @@ s.close()
 
 ## ÉTAPE 10 — Câblage servos body (Phase 2)
 
+### ⚠️ 10.0 — Vérifier le type de servo AVANT tout câblage
+
+Il existe deux versions du SG90 **visuellement identiques** vendues sous le même nom.
+Se tromper de type est une erreur très courante chez les fournisseurs chinois.
+
+**Test physique (30 secondes) — obligatoire avant de continuer :**
+Essaie de tourner l'axe du servo à la main au-delà de 180° :
+- **Résistance mécanique / butée** → ✅ SG90 standard 0-180° → contrôle positionnel
+- **Tourne librement, aucune butée** → ⚠️ SG90 360° rotation continue → contrôle par durée
+
+| Type | Pulse 1500µs | Pulse 1000µs | Pulse 2000µs |
+|------|-------------|-------------|-------------|
+| SG90 standard (0-180°) | 90° (centre) | 0° | 180° |
+| SG90 360° CR | Stop (neutre) | Tourne sens B | Tourne sens A |
+
+**Si tu as des SG90 360° (rotation continue) :**
+- Le code fonctionne mais utilise un contrôle par durée (pas par angle direct)
+- Le point mort varie selon l'unité (calibré à ~1700µs sur ce projet)
+- Calibrer via le dashboard web → onglet **Settings → SERVO CALIBRATION**
+- Prévoir des butées mécaniques physiques dans le mécanisme des panneaux
+
+**Pour acheter les bons servos :** chercher "SG90 servo **180 degree standard**"
+Éviter : "SG90 360°", "SG90 continuous rotation", "SG90-CR"
+
+---
+
 ### 10.1 — Connexion PCA9685 I2C
 
 ```

@@ -831,14 +831,43 @@ TX d'un côté = toujours sur RX de l'autre. Règle physique universelle.
 - **HB** = `app_watchdog.is_connected` → heartbeat **App ↔ Master**
 - **UART** = serial `is_open` + `_running` → lien **Master ↔ Slave**
 
+### ⚠️ Types de servos — VÉRIFIER AVANT D'ACHETER
+
+Il existe deux types de SG90 **visuellement identiques** — se tromper de type est une erreur courante :
+
+| | SG90 Standard 0-180° | SG90 360° / CR (rotation continue) |
+|---|---|---|
+| Butée mécanique | ✅ Oui (0° et 180°) | ❌ Non — tourne librement |
+| Potentiomètre | Variable (mesure la position) | Remplacé par résistances fixes |
+| Commande | Angle direct (`write(70)` → va à 70°) | Vitesse + durée (pas de position) |
+| Pulse 1500µs | 90° (centre) | Stop (neutre) |
+| Pulse 2000µs | ~165° | Tourne en sens A en continu |
+| Pulse 1000µs | ~15° | Tourne en sens B en continu |
+| Usage R2-D2 | ✅ Recommandé — précis et simple | Possible mais calibration par durée |
+
+**Comment identifier son type :**
+Essaie de tourner l'axe du servo à la main au-delà de 180° :
+- **Résistance / blocage mécanique** → SG90 standard 0-180° ✅
+- **Tourne librement à 360°** → SG90 rotation continue ⚠️
+
+**Le "90" dans "SG90" :** désigne le point milieu (pulse 1500µs = position 90°), PAS la plage.
+Un SG90 standard va de 0° à 180°. Le "SG90 360°" est un abus de nomenclature.
+
+**Pour acheter les bons :** chercher "SG90 servo **180 degree**" ou "SG90 **standard**" — éviter "360°", "continuous rotation", "CR".
+
+**Projet actuel :** Les servos installés sont des SG90 360° (rotation continue).
+Le code utilise le contrôle par durée : `duration_ms = (angle / 90.0) * panel_ms_90deg`.
+Calibration disponible dans l'interface web → Settings → SERVO CALIBRATION.
+Remplacement par des SG90 standard prévu — le code sera simplifié à `pulse_us = 544 + (angle/180.0) * 1856`.
+
 ### Phase 2 — Propulsion & Actionneurs 🔧 Code prêt — décommenter
 - [ ] **2.1** Brancher VESC USB `/dev/ttyACM0/1` → décommenter dans `slave/main.py`
 - [ ] **2.2** Brancher Waveshare Motor Driver HAT #15364 (TB6612, I2C 0x40) → décommenter `DomeMotorDriver` dans `master/main.py`
-- [ ] **2.3** Servos — tester hardware d'abord avec scripts standalone :
+- [ ] **2.3** Servos — **vérifier le type avant tout** (voir section ⚠️ Types de servos ci-dessus) puis tester avec scripts standalone :
   - Master : `python3 scripts/test_servo_master.py` → PCA9685 @ 0x40, canal 0
   - Slave  : `python3 scripts/test_servo_slave.py`  → PCA9685 @ 0x41, canal 0
   - Si OK → décommenter `BodyServoDriver` dans les deux main.py
-- [ ] **2.4** Calibrer canaux servo dans `slave/drivers/body_servo_driver.py` → `SERVO_MAP`
+- [ ] **2.4** Calibrer via Settings → SERVO CALIBRATION dans le dashboard web (`panel_angle` + `panel_ms_90deg`)
 - [ ] **2.5** Tester watchdog VESC (arrêt si heartbeat perdu — critique sécurité)
 
 ### Phase 3 — Scripts de séquence 🔧 Code prêt — décommenter
