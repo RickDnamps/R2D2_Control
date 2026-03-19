@@ -11,8 +11,8 @@ master/config/local.cfg
 # Code de référence tiers (r2_control by dpoulson)
 others/
 
-# Sons Mr Baddeley (trop lourds pour git)
-slave/sounds/
+# Sons Mr Baddeley (trop lourds pour git — uniquement les MP3)
+slave/sounds/*.mp3
 
 # Dépendances vendored (générées par vendor_deps.sh)
 slave/vendor/

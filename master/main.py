@@ -148,7 +148,16 @@ def main() -> None:
         log.info(f"Télémétrie Slave: {value}")
 
     def on_version(value: str) -> None:
-        log.info(f"Version Slave: {value}")
+        if value == '?':
+            try:
+                with open(VERSION_FILE) as f:
+                    version = f.read().strip()
+            except Exception:
+                version = "unknown"
+            uart.send('V', version)
+            log.debug(f"Version demandée par Slave — réponse: {version}")
+        else:
+            log.info(f"Version Slave reçue: {value}")
 
     uart.register_callback('H', on_heartbeat_ack)
     uart.register_callback('T', on_telemetry)
