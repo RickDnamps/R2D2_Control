@@ -67,10 +67,11 @@ echo ""
 cleanup() {
     echo ""
     echo "=== Arrêt ==="
-    pkill -INT -f test_servo_master.py 2>/dev/null
-    ssh $SLAVE "pkill -INT -f test_servo_slave.py" 2>/dev/null
-    sleep 2   # laisser Python faire pca.mode1|=0x10 + deinit
+    pkill -9 -f test_servo_master.py 2>/dev/null
+    ssh $SLAVE "pkill -9 -f test_servo_slave.py" 2>/dev/null
     kill $MASTER_PID $SLAVE_PID 2>/dev/null
+    # Coupe PWM via I2C direct — garanti peu importe ce qui s'est passé
+    python3 $REPO/scripts/estop.py
     exit 0
 }
 trap cleanup INT TERM
