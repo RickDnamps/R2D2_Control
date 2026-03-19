@@ -566,6 +566,8 @@ dtoverlay=miniuart-bt
 ```
 > ⚠️ Utiliser **`miniuart-bt`** et NON `disable-bt` — `miniuart-bt` déplace le BT sur le mini UART, ttyAMA0 est libéré pour GPIO 14/15, **le Bluetooth reste fonctionnel** (manettes Switch Pro, Xbox, etc.)
 > `disable-bt` = BT complètement coupé → plus de manettes sans fil
+> ⚠️ Ne pas avoir les deux lignes en même temps dans config.txt — si `disable-bt` et `miniuart-bt` sont présents, supprimer `disable-bt` :
+> `sudo sed -i '/dtoverlay=disable-bt/d' /boot/firmware/config.txt`
 
 ```bash
 # Sur les deux Pi (Master et Slave)
@@ -779,22 +781,30 @@ TX d'un côté = toujours sur RX de l'autre. Règle physique universelle.
 
 ## 🚀 Ordre de développement (Phases)
 
-### Phase 1 — Infrastructure ✅ Code complet
+### Phase 1 — Infrastructure ✅ Code complet + validé sur bench
 - [x] **1.1** Hotspot Wi-Fi Pi 4B (`wlan0`) + clé USB internet (`wlan1`)
 - [x] **1.2** SSH sans mot de passe R2-Master → R2-Slave
-- [x] **1.3** UART + Heartbeat 200ms + **Watchdog 500ms** (critique sécurité)
-- [x] **1.4** Validation version au boot + rsync auto-guérissant
+- [x] **1.3** UART + Heartbeat 200ms + **Watchdog 500ms** — ✅ validé sur bench (BCM14/15 directement)
+- [x] **1.4** Validation version au boot — Master répond à `V:?` avec hash git local
 - [x] **1.5** Bouton dôme (update/rollback/double-appui)
 - [x] **1.6** Écran RP2040 boot/sync/erreur/telemetry
 - [x] **1.7** Teeces32 JawaLite (random/leia/off/text/psi)
-- [x] **1.8** Audio 306 sons MP3 par catégorie (aplay jack 3.5mm)
+- [x] **1.8** Audio 306 sons MP3 — `sounds_index.json` dans git, MP3 gitignorés
 - [ ] Validation sur hardware réel (UART slipring physique)
-> ⚠️ Slipring non encore reçu — tests UART Phase 2 à faire sur breadboard bench (connexion directe BCM14/15)
+> ⚠️ Slipring non encore reçu — tests UART à faire sur breadboard bench (connexion directe BCM14/15)
+> ⚠️ Les services systemd `r2d2-master.service` et `r2d2-slave.service` sont `enabled` — les stopper manuellement avant `test_uart.sh` :
+> ```bash
+> sudo systemctl stop r2d2-master.service r2d2-monitor.service
+> ssh artoo@r2-slave.local "sudo systemctl stop r2d2-slave.service"
+> ```
 
 ### Phase 2 — Propulsion & Actionneurs 🔧 Code prêt — décommenter
 - [ ] **2.1** Brancher VESC USB `/dev/ttyACM0/1` → décommenter dans `slave/main.py`
 - [ ] **2.2** Brancher Waveshare Motor Driver HAT #15364 (TB6612, I2C 0x40) → décommenter `DomeMotorDriver` dans `master/main.py`
-- [ ] **2.3** Brancher PCA9685 body → décommenter `BodyServoDriver` dans les deux main.py
+- [ ] **2.3** Servos — tester hardware d'abord avec scripts standalone :
+  - Master : `python3 scripts/test_servo_master.py` → PCA9685 @ 0x40, canal 0
+  - Slave  : `python3 scripts/test_servo_slave.py`  → PCA9685 @ 0x41, canal 0
+  - Si OK → décommenter `BodyServoDriver` dans les deux main.py
 - [ ] **2.4** Calibrer canaux servo dans `slave/drivers/body_servo_driver.py` → `SERVO_MAP`
 - [ ] **2.5** Tester watchdog VESC (arrêt si heartbeat perdu — critique sécurité)
 

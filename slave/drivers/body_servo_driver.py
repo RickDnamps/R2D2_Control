@@ -29,7 +29,7 @@ from shared.base_driver import BaseDriver
 
 log = logging.getLogger(__name__)
 
-PCA9685_ADDRESS = 0x40
+PCA9685_ADDRESS = 0x41
 PCA9685_FREQ_HZ = 50
 
 # Mapping nom → (channel, pulse_min_us, pulse_max_us)
