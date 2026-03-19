@@ -1,11 +1,15 @@
 package com.r2d2.control
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.os.*
+import android.text.InputType
 import android.view.*
 import android.webkit.*
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
@@ -21,8 +25,8 @@ class MainActivity : AppCompatActivity() {
     private val pingHandler = Handler(Looper.getMainLooper())
 
     companion object {
-        const val PREF_FILE = "r2d2_prefs"
-        const val PREF_HOST = "host"
+        const val PREF_FILE    = "r2d2_prefs"
+        const val PREF_HOST    = "host"
         const val DEFAULT_HOST = "192.168.4.1"
         const val DEFAULT_PORT = 5000
     }
@@ -37,7 +41,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         webView = binding.webview
 
-        // Full screen immersive — must be after setContentView (DecorView required)
+        // Full screen immersive
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.apply {
                 hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
@@ -53,6 +57,18 @@ class MainActivity : AppCompatActivity() {
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             )
         }
+
+        // Banner starts visible (offline state) — slide it above screen once measured
+        binding.statusBanner.viewTreeObserver.addOnGlobalLayoutListener(object :
+            android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                binding.statusBanner.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                // Already offline → stay visible (translationY = 0)
+            }
+        })
+
+        // IP label click → change host dialog
+        binding.statusHost.setOnClickListener { showHostDialog() }
 
         setupWebView()
         loadDashboard()
@@ -71,21 +87,20 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         webView.settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            loadWithOverviewMode = true
-            useWideViewPort = true
+            javaScriptEnabled          = true
+            domStorageEnabled          = true
+            loadWithOverviewMode       = true
+            useWideViewPort            = true
             setSupportZoom(false)
-            builtInZoomControls = false
-            displayZoomControls = false
+            builtInZoomControls        = false
+            displayZoomControls        = false
             mediaPlaybackRequiresUserGesture = false
-            cacheMode = WebSettings.LOAD_DEFAULT
-            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            cacheMode                  = WebSettings.LOAD_DEFAULT
+            mixedContentMode           = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             allowUniversalAccessFromFileURLs = true
             allowFileAccessFromFileURLs = true
         }
 
-        // Native bridge: vibration, WiFi info, settings
         webView.addJavascriptInterface(NativeBridge(this), "AndroidBridge")
 
         webView.webViewClient = object : WebViewClient() {
@@ -100,15 +115,11 @@ class MainActivity : AppCompatActivity() {
                     binding.loadingOverlay.visibility = View.GONE
                 }
             }
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                return false // Handle all navigation inside the WebView
-            }
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = false
         }
 
         webView.webChromeClient = object : WebChromeClient() {
-            override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
-                return true // Suppress console output
-            }
+            override fun onConsoleMessage(msg: ConsoleMessage?) = true
         }
     }
 
@@ -118,9 +129,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startPingLoop() {
+        pingHandler.removeCallbacksAndMessages(null)
         val prefs = getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
-        val host = prefs.getString(PREF_HOST, DEFAULT_HOST) ?: DEFAULT_HOST
-        val port = prefs.getInt("port", DEFAULT_PORT)
+        val host  = prefs.getString(PREF_HOST, DEFAULT_HOST) ?: DEFAULT_HOST
+        val port  = prefs.getInt("port", DEFAULT_PORT)
+
+        // Show current host in banner immediately
+        binding.statusHost.text = "$host:$port"
+
         pingHandler.post(object : Runnable {
             override fun run() {
                 Thread {
@@ -130,7 +146,8 @@ class MainActivity : AppCompatActivity() {
                             isServerOnline = online
                             updateStatusBanner(host, port, online)
                             if (online) webView.evaluateJavascript(
-                                "window.R2D2_API_BASE = 'http://$host:$port'; if(typeof pollStatus==='function') pollStatus();", null
+                                "window.R2D2_API_BASE='http://$host:$port';" +
+                                "if(typeof pollStatus==='function') pollStatus();", null
                             )
                         }
                     }
@@ -142,32 +159,87 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkServer(host: String, port: Int): Boolean {
         return try {
-            val url = URL("http://$host:$port/status")
-            val conn = url.openConnection() as HttpURLConnection
+            val conn = URL("http://$host:$port/status").openConnection() as HttpURLConnection
             conn.connectTimeout = 3000
-            conn.readTimeout = 3000
-            conn.requestMethod = "GET"
+            conn.readTimeout    = 3000
+            conn.requestMethod  = "GET"
             val code = conn.responseCode
             conn.disconnect()
             code in 200..299
-        } catch (e: Exception) {
-            false
-        }
+        } catch (e: Exception) { false }
     }
 
     private fun updateStatusBanner(host: String, port: Int, online: Boolean) {
         binding.statusHost.text = "$host:$port"
         if (online) {
-            binding.statusDot.setTextColor(android.graphics.Color.parseColor("#00ff88"))
-            binding.statusText.text = "EN LIGNE"
-            binding.statusText.setTextColor(android.graphics.Color.parseColor("#00ff88"))
-            binding.statusBanner.setBackgroundColor(android.graphics.Color.parseColor("#00100a"))
+            // Slide banner UP and off screen
+            val h = binding.statusBanner.height.takeIf { it > 0 }
+                ?: (37 * resources.displayMetrics.density).toInt()
+            binding.statusBanner.animate()
+                .translationY(-h.toFloat())
+                .setDuration(350)
+                .withEndAction { binding.statusBanner.visibility = View.GONE }
+                .start()
         } else {
+            // Slide banner DOWN into view
+            binding.statusBanner.visibility = View.VISIBLE
+            binding.statusBanner.animate()
+                .translationY(0f)
+                .setDuration(350)
+                .start()
             binding.statusDot.setTextColor(android.graphics.Color.parseColor("#ff2244"))
             binding.statusText.text = "HORS LIGNE"
             binding.statusText.setTextColor(android.graphics.Color.parseColor("#ff2244"))
-            binding.statusBanner.setBackgroundColor(android.graphics.Color.parseColor("#0d0014"))
+            binding.statusHost.setTextColor(android.graphics.Color.parseColor("#00aaff"))
         }
+    }
+
+    /** Dialog natif pour changer l'adresse IP du Master. */
+    private fun showHostDialog() {
+        val prefs       = getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
+        val currentHost = prefs.getString(PREF_HOST, DEFAULT_HOST) ?: DEFAULT_HOST
+
+        val input = EditText(this).apply {
+            setText(currentHost)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setTextColor(android.graphics.Color.WHITE)
+            setHintTextColor(android.graphics.Color.parseColor("#556677"))
+            hint = "ex: 192.168.4.1  ou  192.168.2.104"
+            setSelection(text.length)
+        }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (16 * resources.displayMetrics.density).toInt()
+            setPadding(pad * 2, pad, pad * 2, 0)
+            addView(input)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Adresse IP du Master R2-D2")
+            .setMessage("Hotspot R2-D2: 192.168.4.1\nWiFi maison: IP locale du Pi")
+            .setView(container)
+            .setPositiveButton("CONNECTER") { _, _ ->
+                val newHost = input.text.toString().trim()
+                if (newHost.isNotBlank()) {
+                    prefs.edit().putString(PREF_HOST, newHost).apply()
+                    isServerOnline = false
+                    // Reset banner to offline state before restarting loop
+                    binding.statusBanner.clearAnimation()
+                    binding.statusBanner.translationY = 0f
+                    binding.statusBanner.visibility = View.VISIBLE
+                    binding.statusDot.setTextColor(android.graphics.Color.parseColor("#ff2244"))
+                    binding.statusText.text = "HORS LIGNE"
+                    binding.statusText.setTextColor(android.graphics.Color.parseColor("#ff2244"))
+                    binding.statusHost.text = "$newHost:$DEFAULT_PORT"
+                    webView.evaluateJavascript(
+                        "window.R2D2_API_BASE='http://$newHost:$DEFAULT_PORT';", null
+                    )
+                    startPingLoop()
+                }
+            }
+            .setNegativeButton("ANNULER", null)
+            .show()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -187,16 +259,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        webView.onResume()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        webView.onPause()
-    }
-
+    override fun onResume()  { super.onResume();  webView.onResume() }
+    override fun onPause()   { super.onPause();   webView.onPause() }
     override fun onDestroy() {
         pingHandler.removeCallbacksAndMessages(null)
         webView.destroy()
@@ -205,15 +269,10 @@ class MainActivity : AppCompatActivity() {
 }
 
 // ================================================================
-// NativeBridge — JavaScript to Android native calls
+// NativeBridge — JavaScript → Android native calls
 // ================================================================
 class NativeBridge(private val activity: MainActivity) {
 
-    /**
-     * Haptic vibration for joystick feedback.
-     * Called from JavaScript: AndroidBridge.vibrate(20)
-     * @param ms Duration in milliseconds (clamped 10–500ms)
-     */
     @JavascriptInterface
     fun vibrate(ms: Long) {
         val hapticEnabled = activity.getSharedPreferences(MainActivity.PREF_FILE, Context.MODE_PRIVATE)
@@ -221,52 +280,29 @@ class NativeBridge(private val activity: MainActivity) {
         if (!hapticEnabled) return
         val v = activity.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            v.vibrate(
-                VibrationEffect.createOneShot(
-                    ms.coerceIn(10, 500),
-                    VibrationEffect.DEFAULT_AMPLITUDE
-                )
-            )
+            v.vibrate(VibrationEffect.createOneShot(ms.coerceIn(10, 500), VibrationEffect.DEFAULT_AMPLITUDE))
         } else {
             @Suppress("DEPRECATION")
             v.vibrate(ms.coerceIn(10, 500))
         }
     }
 
-    /**
-     * Returns the SSID of the currently connected WiFi network.
-     * Useful to verify the phone is on R2D2_Control hotspot.
-     * Called from JavaScript: AndroidBridge.getWifiSSID()
-     */
     @JavascriptInterface
     fun getWifiSSID(): String {
         return try {
             val wm = activity.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
             wm?.connectionInfo?.ssid?.trim('"') ?: "unknown"
-        } catch (e: Exception) {
-            "unknown"
-        }
+        } catch (e: Exception) { "unknown" }
     }
 
-    /**
-     * Update the Master IP address and restart the app to reconnect.
-     * Saved in SharedPreferences.
-     * Called from JavaScript: AndroidBridge.setHost("192.168.4.1")
-     */
     @JavascriptInterface
     fun setHost(host: String) {
         if (host.isBlank()) return
         activity.getSharedPreferences(MainActivity.PREF_FILE, Context.MODE_PRIVATE)
-            .edit()
-            .putString(MainActivity.PREF_HOST, host.trim())
-            .apply()
+            .edit().putString(MainActivity.PREF_HOST, host.trim()).apply()
         activity.runOnUiThread { activity.recreate() }
     }
 
-    /**
-     * Returns the configured Master IP address.
-     * Called from JavaScript: AndroidBridge.getHost()
-     */
     @JavascriptInterface
     fun getHost(): String {
         return activity.getSharedPreferences(MainActivity.PREF_FILE, Context.MODE_PRIVATE)
@@ -274,57 +310,33 @@ class NativeBridge(private val activity: MainActivity) {
             ?: MainActivity.DEFAULT_HOST
     }
 
-    /**
-     * Returns the full API base URL (http://host:port).
-     * Called from JavaScript: AndroidBridge.getApiBase()
-     */
     @JavascriptInterface
     fun getApiBase(): String {
         val prefs = activity.getSharedPreferences(MainActivity.PREF_FILE, Context.MODE_PRIVATE)
-        val host = prefs.getString(MainActivity.PREF_HOST, MainActivity.DEFAULT_HOST) ?: MainActivity.DEFAULT_HOST
-        val port = prefs.getInt("port", MainActivity.DEFAULT_PORT)
+        val host  = prefs.getString(MainActivity.PREF_HOST, MainActivity.DEFAULT_HOST) ?: MainActivity.DEFAULT_HOST
+        val port  = prefs.getInt("port", MainActivity.DEFAULT_PORT)
         return "http://$host:$port"
     }
 
-    /**
-     * Show a native Android Toast message.
-     * Called from JavaScript: AndroidBridge.toast("Message")
-     */
     @JavascriptInterface
     fun toast(msg: String) {
-        activity.runOnUiThread {
-            Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
-        }
+        activity.runOnUiThread { Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show() }
     }
 
-    /**
-     * Check if the device is connected to any network.
-     * Called from JavaScript: AndroidBridge.isNetworkAvailable()
-     */
     @JavascriptInterface
     fun isNetworkAvailable(): Boolean {
         return try {
             val cm = activity.getSystemService(Context.CONNECTIVITY_SERVICE)
                 as? android.net.ConnectivityManager ?: return false
-            val network = cm.activeNetwork ?: return false
-            val caps = cm.getNetworkCapabilities(network) ?: return false
+            val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return false) ?: return false
             caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        } catch (e: Exception) {
-            false
-        }
+        } catch (e: Exception) { false }
     }
 
-    /**
-     * Returns app version string.
-     * Called from JavaScript: AndroidBridge.getAppVersion()
-     */
     @JavascriptInterface
     fun getAppVersion(): String {
         return try {
-            val pi = activity.packageManager.getPackageInfo(activity.packageName, 0)
-            pi.versionName ?: "1.0.0"
-        } catch (e: Exception) {
-            "1.0.0"
-        }
+            activity.packageManager.getPackageInfo(activity.packageName, 0).versionName ?: "1.0.0"
+        } catch (e: Exception) { "1.0.0" }
     }
 }

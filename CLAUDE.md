@@ -822,13 +822,18 @@ TX d'un côté = toujours sur RX de l'autre. Règle physique universelle.
 
 ### Phase 4.5 — App Android ✅ Implémentée
 - [x] WebView wrapper + assets bundlés (charge dashboard offline depuis `android/app/src/main/assets/`)
-- [x] Bandeau connexion natif (rouge HORS LIGNE / vert EN LIGNE) — ping auto toutes les 5s/15s
+- [x] Bandeau natif **HORS LIGNE seulement** — slide down (offline) / slide up + hide (online) — animation 350ms
+- [x] IP du Master cliquable dans le bandeau → dialog natif Android pour changer l'IP (hotspot ↔ WiFi maison)
 - [x] `window.R2D2_API_BASE` injecté via `AndroidBridge.getApiBase()` avant chargement app.js
 - [x] Haptic feedback désactivé par défaut, contrôlable dans Settings
+- [x] WebView plein écran (banner en overlay, ne vole plus 37dp en permanence)
 - [ ] Test sur hotspot R2D2_Control réel avec Master en ligne
 
 > ⚠️ Assets Android à synchroniser manuellement si `master/static/` ou `master/templates/index.html` change :
 > `android/app/src/main/assets/` = copies de `master/static/css/`, `master/static/js/`, `master/templates/index.html`
+
+> ⚠️ Bug critique résolu : `servoPanel.render()` dans `init()` → `servoPanel` n'existe pas (c'est `domeServoPanel`/`bodyServoPanel`)
+> → tuait tout `init()` silencieusement (horloge, poller, pills jamais démarrés)
 
 ### Phase 5 — Vision (futur)
 - [ ] **5.1** Caméra USB + flux vidéo MJPEG
