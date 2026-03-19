@@ -3,11 +3,23 @@
 ## ⚙️ Instructions Claude Code
 - **Toujours committer et pusher sur GitHub après chaque modification** — `git add ... && git commit && git push`
 - Ne jamais laisser des changements non commités en fin de session
-- **Toujours terminer avec la commande de déploiement** — après chaque push, donner à l'utilisateur UNE SEULE commande à rouler sur le Master :
+- **Toujours terminer avec le déploiement SSH direct** — Claude peut déployer lui-même via paramiko :
+  ```python
+  import paramiko, sys, io
+  sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+  c = paramiko.SSHClient(); c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+  c.connect('r2-master.local', username='artoo', password='deetoo', timeout=10)
+  stdin, stdout, stderr = c.exec_command('cd /home/artoo/r2d2 && bash scripts/update.sh 2>&1')
+  for line in stdout: print(line, end='')
+  c.close()
+  ```
+  > ⚠️ `sshpass` non disponible sur Windows Git Bash — toujours utiliser `paramiko`
+  > ⚠️ Ne jamais git commit/push depuis le Pi (pas de credentials GitHub) — toujours depuis le PC de dev
+  > ⚠️ Si git commit depuis le Pi est nécessaire : `git config user.email "artoo@r2d2.local" && git config user.name "R2-Master"` puis récupérer via SFTP et push depuis PC
+- Si déploiement SSH impossible, donner UNE SEULE commande à rouler sur le Master :
   ```bash
   cd /home/artoo/r2d2 && git pull && bash scripts/update.sh
   ```
-  Ne jamais donner des commandes séparées (git pull, systemctl restart, rsync...) — `update.sh` fait tout.
 
 ---
 
@@ -338,9 +350,9 @@ git rev-parse --short HEAD > /home/artoo/r2d2/VERSION
 "4S1\r"              # PSI random
 ```
 
-### Sons R2-D2 (issus de r2_control by dpoulson)
-- **306 sons MP3** stockés sur R2-Slave : `/home/artoo/r2d2/slave/sounds/`
-- **Index** : `slave/sounds/sounds_index.json` — 13 catégories
+### Sons R2-D2 (issus de r2_control by dpoulson + extras)
+- **317 sons MP3** stockés sur R2-Slave : `/home/artoo/r2d2/slave/sounds/`
+- **Index** : `slave/sounds/sounds_index.json` — **14 catégories**
 - Lecture : `aplay` via subprocess (jack 3.5mm natif Pi 4B)
 - Driver : `slave/drivers/audio_driver.py`
 
@@ -359,6 +371,18 @@ git rev-parse --short HEAD > /home/artoo/r2d2/VERSION
 | whistle   | 25 | `WHIST` |
 | scream    | 4  | `SCREA` |
 | special   | 53 | (noms uniques) |
+| extra     | 11 | `R2FREE` ← sons libres ajoutés manuellement sur le Pi |
+
+> ⚠️ Catégorie `extra` : fichiers R2FREE001-011.mp3 présents physiquement sur le Pi uniquement (gitignorés)
+> Si le Slave est réinstallé, re-télécharger :
+> ```bash
+> cd /tmp && wget -q -O r.zip 'https://www.orangefreesounds.com/wp-content/uploads/Zip/R2D2-sounds.zip'
+> unzip r.zip && for i in $(seq 1 10); do cp "/tmp/r2d2_orange/r2d2 sound-${i}.mp3" ~/r2d2/slave/sounds/R2FREE00${i}.mp3; done
+> wget -q -O ~/r2d2/slave/sounds/R2FREE011.mp3 'https://www.freesoundslibrary.com/wp-content/uploads/2021/06/r2-d2-sound.zip'
+> ```
+
+Sons spéciaux disponibles dans la catégorie `special` (noms exacts) :
+`Theme001` `Theme002` `CANTINA` `LEIA` `FAILURE` `WOLFWSTL` `SCREA001` `Gangnam` `SWDiscoShort` `birthday` `ALARM003` `SCREA003`
 
 Commandes UART audio :
 ```
@@ -398,11 +422,9 @@ r2d2/
 │   │   ├── script_bp.py         ← POST /scripts/run|stop
 │   │   ├── teeces_bp.py         ← POST /teeces/random|leia|text
 │   │   └── status_bp.py         ← GET /status + POST /system/*
-│   ├── scripts/                                                    ← Phase 3
-│   │   ├── patrol.scr           ← patrouille
-│   │   ├── celebrate.scr        ← célébration
-│   │   ├── cantina.scr          ← danse de la cantina
-│   │   └── leia.scr             ← message holographique Leia
+│   ├── scripts/                                                    ← Phase 3 — 40 scripts
+│   │   ├── (26 scripts dpoulson fidèles)   ← theme, march, leia, evil, malfunction, cantina...
+│   │   └── (14 scripts customs)            ← patrol, celebrate, startup, excited, scan, disco...
 │   ├── templates/
 │   │   └── index.html           ← dashboard web dark theme         ← Phase 4
 │   ├── static/
@@ -426,8 +448,8 @@ r2d2/
 │   │   ├── vesc_driver.py       ← pyvesc VESC propulsion           ← Phase 2
 │   │   └── body_servo_driver.py ← PCA9685 I2C servos body          ← Phase 2
 │   ├── sounds/
-│   │   ├── sounds_index.json    ← 13 catégories, 306 sons
-│   │   └── *.mp3                ← fichiers audio (gitignored)
+│   │   ├── sounds_index.json    ← 14 catégories, 317 sons (306 dpoulson + 11 R2FREE extras)
+│   │   └── *.mp3                ← fichiers audio (gitignored — présents sur Pi uniquement)
 │   └── services/
 │       ├── r2d2-slave.service   ← systemd
 │       └── r2d2-version.service ← validation version au boot
@@ -857,8 +879,19 @@ Un SG90 standard va de 0° à 180°. Le "SG90 360°" est un abus de nomenclature
 
 **Projet actuel :** Les servos installés sont des SG90 360° (rotation continue).
 Le code utilise le contrôle par durée : `duration_ms = (angle / 90.0) * panel_ms_90deg`.
-Calibration disponible dans l'interface web → Settings → SERVO CALIBRATION.
+Calibration **par panneau individuel** dans l'interface web → Settings → SERVO CALIBRATION.
 Remplacement par des SG90 standard prévu — le code sera simplifié à `pulse_us = 544 + (angle/180.0) * 1856`.
+
+**Config calibration par panneau (`master/config/main.cfg` ou `local.cfg`) :**
+```ini
+[servo_panels]
+ms_90deg = 150          # durée base pour 90° (tous les panneaux)
+dome_panel_1_open  = 70 # angle ouverture panneau 1 (0-90)
+dome_panel_1_close = 70 # angle fermeture panneau 1
+# ... dome_panel_2 à dome_panel_11, body_panel_1 à body_panel_11
+```
+> L'ancienne section `[servo]` avec `panel_angle` + `panel_ms_90deg` est remplacée par `[servo_panels]`
+> `servo,dome_panel_N,open` dans les scripts utilise automatiquement l'angle `dome_panel_N_open` de la config
 
 ### Phase 2 — Propulsion & Actionneurs 🔧 Code prêt — décommenter
 - [ ] **2.1** Brancher VESC USB `/dev/ttyACM0/1` → décommenter dans `slave/main.py`
@@ -870,10 +903,60 @@ Remplacement par des SG90 standard prévu — le code sera simplifié à `pulse_
 - [ ] **2.4** Calibrer via Settings → SERVO CALIBRATION dans le dashboard web (`panel_angle` + `panel_ms_90deg`)
 - [ ] **2.5** Tester watchdog VESC (arrêt si heartbeat perdu — critique sécurité)
 
-### Phase 3 — Scripts de séquence 🔧 Code prêt — décommenter
-- [ ] **3.1** Décommenter `ScriptEngine` dans `master/main.py`
-- [ ] **3.2** Tester les 4 scripts inclus (patrol, celebrate, cantina, leia)
-- [ ] **3.3** Créer des scripts personnalisés dans `master/scripts/`
+### Phase 3 — Scripts de séquence ✅ 40 scripts disponibles
+- [x] **3.1** `ScriptEngine` décommenté et actif dans `master/main.py`
+- [x] **3.2** 40 scripts dans `master/scripts/` — 26 fidèles dpoulson + 14 customs
+
+**Scripts dpoulson (fidèles) :**
+`theme` `march` `leia` `evil` `failure` `alert` `malfunction` `cantina` `r2kt` `wolfwhistle`
+`dome_dance` `dome_test1` `dome_test2` `test` `flap_dome` `flap_dome_fast` `flap_dome_side`
+`ripple_dome` `ripple_dome_fast` `ripple_dome_side` `slow_open_close`
+`looping_sounds` `looping_sounds_quick` `body_test` `dance` `hp_twitch`
+
+**Scripts customs :**
+`patrol` `celebrate` `panel_test` `startup` `excited` `scared` `angry` `curious`
+`party` `birthday` `disco` `message` `taunt` `scan`
+
+**Mapping dpoulson → notre système (pour créer de nouveaux scripts) :**
+| dpoulson | Notre commande script |
+|----------|-----------------------|
+| `dome,P1,1,0` | `servo,dome_panel_1,open` |
+| `dome,P1,0,0` | `servo,dome_panel_1,close` |
+| `dome,P2/P3/P4` | `servo,dome_panel_2/3/4,open\|close` |
+| `dome,PP1/PP2/PP5/PP6` | `servo,dome_panel_5/6/7/8,open\|close` |
+| `dome,MP1/MP2/MP3` | `servo,dome_panel_9/10/11,open\|close` |
+| `dome,all,open\|close` | `servo,all,open\|close` |
+| `rseries,NNNN` | `teeces,random` + `sleep,N.N` + `teeces,off` |
+| `sound,Theme001` | `sound,Theme001` (nom exact) |
+| `sound,random,happy` | `sound,RANDOM,happy` |
+| `body,LLD` | `servo,body_panel_1,open\|close` |
+| `body,RLD` | `servo,body_panel_2,open\|close` |
+| `body,BotArm` | `servo,body_panel_3,open\|close` |
+| `flthy,XXXX` | *(non supporté — ignorer)* |
+| `smoke,N` | *(non supporté — ignorer)* |
+
+**Commandes script_engine complètes :**
+```
+sound,FILENAME           → son spécifique (ex: sound,Theme001)
+sound,RANDOM,category    → son aléatoire (ex: sound,RANDOM,happy)
+servo,dome_panel_N,open  → ouvre avec angle calibré de la config
+servo,dome_panel_N,close → ferme avec angle calibré de la config
+servo,dome_panel_N,1.0,300 → position float + durée ms (legacy)
+servo,all,open|close     → tous les panneaux
+teeces,random            → animations aléatoires (loop jusqu'à teeces,off)
+teeces,leia              → mode Leia
+teeces,off               → éteint
+teeces,text,MESSAGE      → texte défilant FLD (max ~20 chars)
+teeces,psi,0             → PSI random
+teeces,psi,N             → PSI mode N
+dome,turn,SPEED          → rotation dôme DC (float -1.0..1.0)
+dome,stop                → arrêt dôme
+dome,random,on|off       → mode aléatoire dôme
+sleep,N                  → pause N secondes (float)
+sleep,random,MIN,MAX     → pause aléatoire entre MIN et MAX secondes
+motion,STOP              → arrêt propulsion
+motion,LEFT,RIGHT,DUR    → drive différentiel (float, float, ms)
+```
 
 ### Phase 4 — API REST + Dashboard Web 🔧 Code prêt — décommenter
 - [ ] **4.1** Décommenter Flask dans `master/main.py` → `create_app()` + thread
@@ -882,20 +965,35 @@ Remplacement par des SG90 standard prévu — le code sera simplifié à `pulse_
 - [ ] **4.4** Tester contrôle WASD depuis navigateur mobile (hotspot)
 - [ ] **4.5** App Android (Phase 4+ — UDP joystick ou WebView dashboard)
 
-### Phase 4.5 — App Android ✅ Implémentée
+### Phase 4.5 — App Android ✅ Implémentée + Connectivité fixée
 - [x] WebView wrapper + assets bundlés (charge dashboard offline depuis `android/app/src/main/assets/`)
 - [x] Bandeau natif **HORS LIGNE seulement** — slide down (offline) / slide up + hide (online) — animation 350ms
 - [x] IP du Master cliquable dans le bandeau → dialog natif Android pour changer l'IP (hotspot ↔ WiFi maison)
-- [x] `window.R2D2_API_BASE` injecté via `AndroidBridge.getApiBase()` avant chargement app.js
+- [x] `window.R2D2_API_BASE` injecté par `MainActivity.kt` via `evaluateJavascript` dans `onPageFinished`
+- [x] `api()` dans `app.js` utilise `window.R2D2_API_BASE` comme préfixe — **critique pour Android** (`file://` → appels relatifs échouaient)
+- [x] `startAppHeartbeat()` utilise aussi `R2D2_API_BASE` (fetch heartbeat + beforeunload)
+- [x] `pollStatus()` global ajouté dans `app.js` — appelé par `MainActivity.kt` quand le serveur revient online
+- [x] `StatusPoller._setOffline()` recharge scripts/servos/audio au retour online
 - [x] Haptic feedback désactivé par défaut, contrôlable dans Settings
 - [x] WebView plein écran (banner en overlay, ne vole plus 37dp en permanence)
 - [x] Auto-découverte réseau : mDNS `r2-master.local` → IP sauvegardée → `192.168.4.1` → scan subnet /24 (50 threads, 500ms timeout)
 - [x] Déclenchée automatiquement après 3 pings consécutifs en échec
 - [x] Dialog IP : bouton RECHERCHER intégré avec spinner + résultat
+- [x] Calibration servos par panneau : angles `open`/`close` individuels dans Settings → SERVO CALIBRATION
 - [ ] Test sur hotspot R2D2_Control réel avec Master en ligne
 
-> ⚠️ Assets Android à synchroniser manuellement si `master/static/` ou `master/templates/index.html` change :
-> `android/app/src/main/assets/` = copies de `master/static/css/`, `master/static/js/`, `master/templates/index.html`
+> ⚠️ Assets Android — synchroniser manuellement si `master/static/` ou `master/templates/index.html` change :
+> ```bash
+> cp master/static/js/app.js android/app/src/main/assets/js/app.js
+> cp master/static/css/style.css android/app/src/main/assets/css/style.css
+> # Pour index.html : NE PAS copier directement — patcher les chemins :
+> # /static/css/style.css → css/style.css
+> # /static/js/app.js → js/app.js
+> # {{ url_for(...) }} → chemin relatif
+> # Désactiver le Service Worker (incompatible file:// origin)
+> ```
+
+> ⚠️ GitHub Actions workflow android-release.yml — utiliser `actions/checkout@v4` et `actions/setup-java@v4` (sans version patch) pour éviter dépréciation Node.js 20
 
 > ⚠️ Bug critique résolu : `servoPanel.render()` dans `init()` → `servoPanel` n'existe pas (c'est `domeServoPanel`/`bodyServoPanel`)
 > → tuait tout `init()` silencieusement (horloge, poller, pills jamais démarrés)
@@ -966,6 +1064,7 @@ slave/sounds/            # sons trop lourds pour git
 *.log                    # logs
 master/config/local.cfg  # credentials WiFi maison + hotspot + GitHub URL personnelle
 slave/vendor/            # dépendances pip pré-téléchargées
+debug/                   # dossier généré automatiquement par le Master (logs de debug)
 ```
 
 ### local.cfg — sections complètes
