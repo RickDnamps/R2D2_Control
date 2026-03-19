@@ -1,0 +1,10 @@
+# Message — R2-D2 transmet un message important (quote + teeces leia)
+teeces,leia
+sleep,0.5
+sound,RANDOM,quote
+sleep,0.5
+servo,dome_panel_1,open
+sleep,5
+servo,dome_panel_1,close
+sleep,20
+teeces,off

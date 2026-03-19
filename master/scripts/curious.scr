@@ -1,0 +1,22 @@
+# Curious — R2-D2 curieux : dôme qui tourne, regarde, sons proc
+sound,RANDOM,proc
+dome,turn,0.3
+sleep,1.5
+dome,stop
+sleep,0.5
+servo,dome_panel_1,open
+sleep,0.4
+servo,dome_panel_1,close
+sound,RANDOM,proc
+dome,turn,-0.3
+sleep,1.5
+dome,stop
+sleep,0.3
+servo,dome_panel_2,open
+sleep,0.5
+servo,dome_panel_2,close
+sleep,0.5
+sound,RANDOM,ooh
+teeces,random
+sleep,3
+teeces,off

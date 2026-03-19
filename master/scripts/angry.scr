@@ -1,0 +1,22 @@
+# Angry — R2-D2 en colère : sons razz + teeces agité + panneaux qui claquent
+sound,RANDOM,razz
+teeces,random
+servo,all,open
+sleep,0.15
+servo,all,close
+sleep,0.05
+servo,all,open
+sleep,0.1
+servo,all,close
+sleep,0.1
+servo,all,open
+sleep,0.05
+servo,all,close
+sleep,0.5
+sound,RANDOM,razz
+sleep,1.5
+teeces,text,GRAAAH
+sleep,2
+teeces,random
+sleep,3
+teeces,off

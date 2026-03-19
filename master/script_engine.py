@@ -250,6 +250,12 @@ class ScriptEngine:
             self._teeces.all_off()
         elif action == 'text':
             self._teeces.fld_text(row[2] if len(row) > 2 else '')
+        elif action == 'psi':
+            mode = int(row[2]) if len(row) > 2 else 0
+            if mode == 0:
+                self._teeces.psi_random()
+            else:
+                self._teeces.psi_mode(mode)
 
     def _on_done(self, script_id: int) -> None:
         with self._lock:

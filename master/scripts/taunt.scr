@@ -1,0 +1,18 @@
+# Taunt — R2-D2 se moque : sons ooh + whistle + panneaux narquois
+sound,RANDOM,ooh
+sleep,0.5
+servo,dome_panel_2,open
+sleep,0.5
+servo,dome_panel_2,close
+sound,RANDOM,whistle
+teeces,random
+sleep,1.0
+servo,dome_panel_1,open
+sleep,0.2
+servo,dome_panel_1,close
+sleep,0.1
+servo,dome_panel_1,open
+sleep,0.3
+servo,dome_panel_1,close
+sleep,2
+teeces,off

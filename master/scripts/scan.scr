@@ -1,0 +1,20 @@
+# Scan — R2-D2 analyse l'environnement : dôme lent + proc + affichage
+teeces,text,SCANNING
+sound,RANDOM,proc
+dome,turn,0.2
+sleep,2
+dome,stop
+sleep,0.5
+sound,RANDOM,proc
+dome,turn,-0.2
+sleep,2
+dome,stop
+sleep,0.5
+teeces,text,ANALYSIS
+sound,RANDOM,misc
+sleep,2
+teeces,psi,1
+sleep,1
+teeces,random
+sleep,2
+teeces,off

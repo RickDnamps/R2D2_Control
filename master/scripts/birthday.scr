@@ -1,0 +1,25 @@
+# Birthday — Joyeux anniversaire : son birthday + séquence panneaux festive
+sound,birthday
+teeces,random
+sleep,0.5
+servo,dome_panel_1,open
+servo,dome_panel_2,open
+servo,dome_panel_3,open
+servo,dome_panel_4,open
+sleep,1.0
+servo,all,close
+sleep,0.5
+servo,dome_panel_5,open
+servo,dome_panel_6,open
+servo,dome_panel_7,open
+servo,dome_panel_8,open
+sleep,1.0
+servo,all,close
+sleep,0.5
+servo,all,open
+sleep,2
+servo,all,close
+sleep,15
+teeces,psi,1
+sleep,5
+teeces,off
