@@ -22,6 +22,7 @@ Si aucune commande reçue pendant 800ms alors que le robot est en mouvement
 from flask import Blueprint, request, jsonify
 import master.registry as reg
 from master.motion_watchdog import motion_watchdog
+from master.safe_stop import cancel_ramp
 
 motion_bp = Blueprint('motion', __name__, url_prefix='/motion')
 
@@ -41,6 +42,7 @@ def drive():
     left  = _clamp(float(body.get('left',  0.0)))
     right = _clamp(float(body.get('right', 0.0)))
 
+    cancel_ramp()                             # annule arrêt progressif si en cours
     motion_watchdog.feed_drive(left, right)   # alimente le watchdog
 
     if reg.vesc:
@@ -57,9 +59,9 @@ def arcade():
     throttle = _clamp(float(body.get('throttle', 0.0)))
     steering = _clamp(float(body.get('steering', 0.0)))
 
-    # Conversion arcade → différentielle pour alimenter le watchdog
     left  = _clamp(throttle + steering)
     right = _clamp(throttle - steering)
+    cancel_ramp()
     motion_watchdog.feed_drive(left, right)
 
     if reg.vesc:

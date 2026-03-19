@@ -51,16 +51,18 @@ def _cpu_temp() -> float | None:
 def get_status():
     """État complet du système R2-D2."""
     _uart_serial = getattr(reg.uart, '_serial', None)
-    uart_ready   = bool(_uart_serial and _uart_serial.is_open)
-    heartbeat_ok = bool(uart_ready and getattr(reg.uart, '_running', False))
+    uart_ready   = bool(_uart_serial and _uart_serial.is_open
+                        and getattr(reg.uart, '_running', False))
+    # HB  = heartbeat applicatif App ↔ Master (AppWatchdog)
+    # UART = lien série Master ↔ Slave
+    heartbeat_ok = app_watchdog.is_connected
     return jsonify({
         'version':      _read_version(),
         'uptime':       _uptime(),
         'temperature':  _cpu_temp(),
-        'heartbeat_ok': heartbeat_ok,
-        'uart_ready':   uart_ready,
-        'app_connected':   app_watchdog.is_connected,
-        'app_hb_age_ms':   app_watchdog.last_hb_age_ms,
+        'heartbeat_ok': heartbeat_ok,   # App ↔ Master
+        'uart_ready':   uart_ready,     # Master ↔ Slave UART
+        'app_hb_age_ms': app_watchdog.last_hb_age_ms,
         'teeces_ready': bool(reg.teeces and reg.teeces.is_ready()),
         'vesc_ready':   bool(reg.vesc   and reg.vesc.is_ready()),
         'dome_ready':   bool(reg.dome   and reg.dome.is_ready()),

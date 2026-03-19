@@ -22,6 +22,7 @@ import threading
 import time
 
 import master.registry as reg
+from master.safe_stop import stop_drive, stop_dome
 
 log = logging.getLogger(__name__)
 
@@ -101,26 +102,11 @@ class AppWatchdog:
 
     def _emergency_stop(self) -> None:
         log.warning(
-            "AppWatchdog: heartbeat app perdu (>%.0fms) — ARRÊT D'URGENCE",
+            "AppWatchdog: heartbeat app perdu (>%.0fms) — arrêt progressif",
             TIMEOUT_S * 1000
         )
-        # Propulsion
-        try:
-            if reg.vesc:
-                reg.vesc.stop()
-            elif reg.uart:
-                reg.uart.send('M', '0.000,0.000')
-        except Exception as e:
-            log.error("AppWatchdog stop drive: %s", e)
-
-        # Dôme
-        try:
-            if reg.dome:
-                reg.dome.stop()
-            elif reg.uart:
-                reg.uart.send('D', '0.000')
-        except Exception as e:
-            log.error("AppWatchdog stop dome: %s", e)
+        stop_drive()   # ramp proportionnelle — pas de freinage brutal
+        stop_dome()
 
 
 # Singleton global

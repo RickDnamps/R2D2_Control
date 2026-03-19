@@ -21,6 +21,7 @@ import threading
 import time
 
 import master.registry as reg
+from master.safe_stop import stop_drive, stop_dome, cancel_ramp
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ class MotionWatchdog:
 
     def feed_drive(self, left: float, right: float) -> None:
         """Signale une commande drive reçue."""
+        cancel_ramp()   # annule tout arrêt progressif en cours
         with self._lock:
             self._last_drive_time = time.monotonic()
             self._drive_active    = abs(left) > DEADZONE or abs(right) > DEADZONE
@@ -105,26 +107,14 @@ class MotionWatchdog:
     def _stop_drive(self) -> None:
         with self._lock:
             self._drive_active = False
-        log.warning("MotionWatchdog: timeout contrôleur — ARRÊT PROPULSION")
-        try:
-            if reg.vesc:
-                reg.vesc.stop()
-            elif reg.uart:
-                reg.uart.send('M', '0.000,0.000')
-        except Exception as e:
-            log.error("MotionWatchdog stop_drive error: %s", e)
+        log.warning("MotionWatchdog: timeout commande — arrêt progressif propulsion")
+        stop_drive()   # ramp proportionnelle à la vitesse courante
 
     def _stop_dome(self) -> None:
         with self._lock:
             self._dome_active = False
-        log.warning("MotionWatchdog: timeout contrôleur — ARRÊT DÔME")
-        try:
-            if reg.dome:
-                reg.dome.stop()
-            elif reg.uart:
-                reg.uart.send('D', '0.000')
-        except Exception as e:
-            log.error("MotionWatchdog stop_dome error: %s", e)
+        log.warning("MotionWatchdog: timeout commande — arrêt progressif dôme")
+        stop_dome()
 
 
 # Singleton global
