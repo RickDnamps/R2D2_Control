@@ -49,26 +49,33 @@ def main():
     print("Ctrl+C pour arrêter")
     print()
 
-    STEPS = 100       # nombre de pas par sweep
-    PERIOD = 2.0      # secondes pour aller de 0° à 180°
+    # Plage sécuritaire — évite de pousser contre la butée mécanique
+    ANGLE_MIN = 60
+    ANGLE_MAX = 120
+    STEPS  = 50
+    PERIOD = 2.0
     DELAY  = PERIOD / STEPS
 
     def set_angle(deg: float) -> None:
         pulse = 1000 + (deg / 180.0) * 1000
         pca.channels[0].duty_cycle = us_to_duty(pulse)
 
+    print(f"Sweep {ANGLE_MIN}°→{ANGLE_MAX}° en boucle — Ctrl+C pour arrêter")
+
     try:
+        set_angle(90)
+        time.sleep(0.5)
         while True:
             for i in range(STEPS + 1):
-                set_angle(i * 180 / STEPS)
+                set_angle(ANGLE_MIN + i * (ANGLE_MAX - ANGLE_MIN) / STEPS)
                 time.sleep(DELAY)
             for i in range(STEPS, -1, -1):
-                set_angle(i * 180 / STEPS)
+                set_angle(ANGLE_MIN + i * (ANGLE_MAX - ANGLE_MIN) / STEPS)
                 time.sleep(DELAY)
     except KeyboardInterrupt:
         print("\nArrêt — servo en position neutre (90°)")
         set_angle(90)
-        time.sleep(0.5)
+        time.sleep(0.3)
         pca.deinit()
         print("OK")
 
