@@ -1,16 +1,5 @@
-# Evil — R2 devient menaçant (animation Teeces prolongée)
-# Adapté de evil.scr (dpoulson/r2_control) — rseries,51000
+# Evil — Animation Teeces sinistre prolongée, sans son
+# Source: evil.scr (dpoulson/r2_control) — rseries,51000 uniquement
 teeces,random
-sleep,2.0
-sound,RANDOM,razz
-sleep,2.0
-dome,turn,0.3
-sleep,random,3,6
-sound,RANDOM,razz
-sleep,1.0
-dome,turn,-0.3
-sleep,2.0
-dome,stop
-sound,RANDOM,razz
-sleep,3.0
+sleep,15
 teeces,off

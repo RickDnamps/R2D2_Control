@@ -1,12 +1,4 @@
-# Theme — Thème Star Wars + Teeces + dôme majestueux
-# Adapté de theme.scr (dpoulson/r2_control) — joue un son spécial long (~38s)
+# Theme — Star Wars Main Theme (Theme001) — son uniquement, ~38s
+# Source: theme.scr (dpoulson/r2_control) — sound,Theme001 + sleep,38
 sound,RANDOM,special
-teeces,random
-sleep,3.0
-dome,turn,0.15
-sleep,6.0
-dome,turn,-0.15
-sleep,6.0
-dome,stop
-sleep,20.0
-teeces,off
+sleep,38

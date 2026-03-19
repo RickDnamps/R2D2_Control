@@ -1,5 +1,5 @@
-# Malfunction — Panique dramatique avec panneaux qui s'affolent
-# Adapté de malfunction.scr (dpoulson/r2_control)
+# Malfunction — Son panique + panneaux affolés (22 cycles open/close)
+# Source: malfunction.scr (dpoulson/r2_control) — séquence complète fidèle
 sound,RANDOM,alarm
 teeces,random
 servo,all,open
@@ -19,14 +19,21 @@ sleep,0.1
 servo,all,close
 sleep,0.15
 servo,all,open
-sleep,0.5
-servo,all,close
-sleep,0.15
-sound,RANDOM,scream
-servo,all,open
 sleep,0.05
 servo,all,close
 sleep,0.1
+servo,all,open
+sleep,0.5
+servo,all,close
+sleep,0.15
+servo,all,open
+sleep,0.1
+servo,all,close
+sleep,0.15
+servo,all,open
+sleep,0.1
+servo,all,close
+sleep,0.05
 servo,all,open
 sleep,0.1
 servo,all,close
