@@ -455,20 +455,35 @@ class ServoPanel {
   render() {
     const grid = el(this._gridId);
     if (!grid) return;
+    const varName = this._getVar();
     grid.innerHTML = this._servos.map(name => {
-      const num = name.split('_').pop();
-      const label = `PANEL ${num}`;
+      const num      = name.split('_').pop();
+      const panel    = (_servoCfg.panels || {})[name] || { open: 70, close: 70 };
       return `
         <div class="servo-row" id="servo-row-${name}">
-          <span class="servo-name">${label}</span>
-          <div class="servo-pos-bar">
-            <div class="servo-pos-fill" id="servo-fill-${name}" style="width:0%"></div>
+          <span class="servo-name">P${num}</span>
+          <div class="servo-calib-wrap">
+            <label class="servo-calib-label">O<input type="number" id="sc-open-${name}"
+              class="servo-angle-in" min="0" max="90" value="${panel.open}"></label>
+            <label class="servo-calib-label">C<input type="number" id="sc-close-${name}"
+              class="servo-angle-in" min="0" max="90" value="${panel.close}"></label>
           </div>
-          <button class="btn btn-sm" onclick="${this._getVar()}.open('${name}')">OPEN</button>
-          <button class="btn btn-sm btn-dark" onclick="${this._getVar()}.close('${name}')">CLOSE</button>
+          <button class="btn btn-sm" onclick="${varName}.open('${name}')">OPEN</button>
+          <button class="btn btn-sm btn-dark" onclick="${varName}.close('${name}')">CLOSE</button>
         </div>
       `;
     }).join('');
+  }
+
+  updateInputs() {
+    this._servos.forEach(name => {
+      const panel = (_servoCfg.panels || {})[name];
+      if (!panel) return;
+      const oEl = el(`sc-open-${name}`);
+      const cEl = el(`sc-close-${name}`);
+      if (oEl) oEl.value = panel.open;
+      if (cEl) cEl.value = panel.close;
+    });
   }
 
   _getVar() {
@@ -476,19 +491,37 @@ class ServoPanel {
   }
 
   open(name) {
-    const dur = _servoCfg.duration_ms;
+    const panel = (_servoCfg.panels || {})[name] || {};
+    const dur   = panel.open_ms || 117;
     api(`${this._apiPrefix}/open`, 'POST', { name, duration: dur }).then(d => {
-      if (d) { toast(`${name}: OPEN (${dur}ms)`, 'ok'); this._setFill(name, 100); }
+      if (d) { toast(`P${name.split('_').pop()}: OPEN (${dur}ms)`, 'ok'); this._setFill(name, 100); }
     });
     this._state[name] = 'open';
   }
 
   close(name) {
-    const dur = _servoCfg.duration_ms;
+    const panel = (_servoCfg.panels || {})[name] || {};
+    const dur   = panel.close_ms || 117;
     api(`${this._apiPrefix}/close`, 'POST', { name, duration: dur }).then(d => {
-      if (d) { toast(`${name}: CLOSE (${dur}ms)`, 'ok'); this._setFill(name, 0); }
+      if (d) { toast(`P${name.split('_').pop()}: CLOSE (${dur}ms)`, 'ok'); this._setFill(name, 0); }
     });
     this._state[name] = 'close';
+  }
+
+  async saveAngles() {
+    const panels = {};
+    this._servos.forEach(name => {
+      const oEl = el(`sc-open-${name}`);
+      const cEl = el(`sc-close-${name}`);
+      if (oEl && cEl) {
+        panels[name] = { open: parseInt(oEl.value) || 70, close: parseInt(cEl.value) || 70 };
+      }
+    });
+    const data = await api('/servo/settings', 'POST', { ms_90deg: _servoCfg.ms_90deg || 150, panels });
+    if (!data) { toast('Erreur réseau', 'error'); return; }
+    _servoCfg = data;
+    this.updateInputs();
+    toast('Angles sauvegardés', 'ok');
   }
 
   _setFill(name, pct) {
@@ -498,48 +531,42 @@ class ServoPanel {
 }
 
 // Servo calibration config (loaded from /servo/settings at init)
-let _servoCfg = { panel_angle: 70, panel_ms_90deg: 150, duration_ms: 117 };
+// Format : { ms_90deg: 150, panels: { dome_panel_1: { open: 70, close: 70, open_ms: 117, close_ms: 117 }, ... } }
+let _servoCfg = { ms_90deg: 150, panels: {} };
 
 async function loadServoSettings() {
   const data = await api('/servo/settings');
   if (!data) return;
   _servoCfg = data;
-  if (el('servo-angle'))  el('servo-angle').value  = data.panel_angle;
-  if (el('servo-ms90'))   el('servo-ms90').value   = data.panel_ms_90deg;
+  if (el('servo-ms90')) el('servo-ms90').value = data.ms_90deg;
   updateServoDurationPreview();
+  domeServoPanel.updateInputs();
+  bodyServoPanel.updateInputs();
 }
 
 function updateServoDurationPreview() {
-  const angle = parseInt(el('servo-angle')?.value ?? _servoCfg.panel_angle);
-  const ms90  = parseInt(el('servo-ms90')?.value  ?? _servoCfg.panel_ms_90deg);
-  if (isNaN(angle) || isNaN(ms90)) return;
-  const dur = Math.max(50, Math.round(angle / 90 * ms90));
+  const ms90 = parseInt(el('servo-ms90')?.value ?? _servoCfg.ms_90deg ?? 150);
+  if (isNaN(ms90)) return;
+  const dur  = Math.max(50, Math.round(70 / 90 * ms90));
   const prev = el('servo-duration-preview');
-  if (prev) prev.textContent = `Duration calculée: ${dur} ms`;
-  // Update live so open/close buttons use new value immediately
-  _servoCfg.duration_ms = dur;
+  if (prev) prev.textContent = `Exemple 70° = ${dur} ms`;
 }
 
-async function saveServoSettings() {
-  const angle = parseInt(el('servo-angle')?.value ?? 70);
-  const ms90  = parseInt(el('servo-ms90')?.value  ?? 150);
-  const data  = await api('/servo/settings', 'POST', { panel_angle: angle, panel_ms_90deg: ms90 });
+async function saveServoMs90() {
+  const ms90 = parseInt(el('servo-ms90')?.value ?? 150);
+  const data = await api('/servo/settings', 'POST', { ms_90deg: ms90, panels: {} });
   if (!data) { toast('Erreur réseau', 'error'); return; }
   _servoCfg = data;
-  if (el('servo-angle')) el('servo-angle').value = data.panel_angle;
-  if (el('servo-ms90'))  el('servo-ms90').value  = data.panel_ms_90deg;
   updateServoDurationPreview();
-  if (data.warning) toast(data.warning, 'warn');
-  else toast(`Saved — ${data.duration_ms} ms / ouverture`, 'ok');
+  domeServoPanel.updateInputs();
+  bodyServoPanel.updateInputs();
+  toast(`ms_90deg sauvegardé: ${ms90} ms`, 'ok');
 }
 
 async function testServoSettings(dir) {
-  const angle = parseInt(el('servo-angle')?.value ?? _servoCfg.panel_angle);
-  const ms90  = parseInt(el('servo-ms90')?.value  ?? _servoCfg.panel_ms_90deg);
-  const dur   = Math.max(50, Math.round(angle / 90 * ms90));
   const endpoint = dir === 'open' ? '/servo/dome/open' : '/servo/dome/close';
-  const data = await api(endpoint, 'POST', { name: 'dome_panel_1', duration: dur });
-  if (data) toast(`Test ${dir.toUpperCase()} — ${dur}ms`, 'ok');
+  const data = await api(endpoint, 'POST', { name: 'dome_panel_1' });
+  if (data) toast(`Test dome_panel_1 ${dir.toUpperCase()} — ${data.duration}ms`, 'ok');
 }
 
 const DOME_SERVOS = Array.from({length: 11}, (_, i) => `dome_panel_${i + 1}`);

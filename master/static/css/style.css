@@ -1065,6 +1065,38 @@ body::after {
   width: 0%;
 }
 
+/* Servo per-panel calibration inputs */
+.servo-calib-wrap {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.servo-calib-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+.servo-angle-in {
+  width: 38px;
+  padding: 2px 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font-size: 11px;
+  text-align: center;
+}
+
+.servo-angle-in:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
 /* BT Controller */
 .bt-status-row {
   display: flex;
