@@ -14,6 +14,7 @@ Lit le bus UART depuis le Master et dispatche les commandes.
 import logging
 import threading
 import time
+import traceback
 import os
 import sys
 
@@ -103,7 +104,9 @@ class UARTListener:
                 log.error(f"Erreur lecture UART Slave: {e}")
                 time.sleep(1)
             except Exception as e:
-                log.error(f"Erreur inattendue read_loop Slave: {e}")
+                log.error("Erreur inattendue read_loop Slave: %s\n%s",
+                          e, traceback.format_exc())
+                time.sleep(0.1)
 
     def _process_line(self, line: str) -> None:
         if not line:

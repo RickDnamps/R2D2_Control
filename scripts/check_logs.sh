@@ -99,17 +99,15 @@ echo ""
 sep
 echo -e "${CYAN}  LOGS MASTER — dernières $TAIL lignes${NC}"
 sep
-ssh -o ConnectTimeout=5 $MASTER \
-    "sudo journalctl -u r2d2-master --no-pager -n $TAIL --output=short-iso 2>/dev/null" 2>/dev/null \
-    | grep -E "ERROR|WARNING|servo|dome|PCA|smbus|I2C|prêt|setup|ready|Erreur" \
-    | grep --color=always -E "ERROR|$" \
+# Lire les logs master directement (pas de SSH — on est déjà sur le master)
+sudo journalctl -u r2d2-master -b --no-pager -n $TAIL --output=short-iso 2>/dev/null \
+    | grep -iE "servo|dome|pca|smbus|error|warn|prêt|setup|Erreur" \
     | tail -40
 
 echo ""
-echo "--- TOUTES les lignes servo/erreur ---"
-ssh -o ConnectTimeout=5 $MASTER \
-    "sudo journalctl -u r2d2-master --no-pager -n $TAIL --output=short-iso 2>/dev/null" 2>/dev/null \
-    | grep -iE "servo|dome_servo|pca|smbus|ERROR|WARN|Erreur" | tail -30
+echo "--- Lignes traceback / exception ---"
+sudo journalctl -u r2d2-master -b --no-pager -n $TAIL --output=short-iso 2>/dev/null \
+    | grep -iE "traceback|Exception|NoneType|AttributeError|TypeError" | tail -20
 
 # ──────────────────────────────────────────────
 # 6. Logs Slave — dernières lignes + erreurs
@@ -119,30 +117,29 @@ sep
 echo -e "${CYAN}  LOGS SLAVE — dernières $TAIL lignes${NC}"
 sep
 ssh -o ConnectTimeout=5 $SLAVE \
-    "sudo journalctl -u r2d2-slave --no-pager -n $TAIL --output=short-iso 2>/dev/null" 2>/dev/null \
-    | grep -E "ERROR|WARNING|SRV|servo|PCA|smbus|I2C|prêt|setup|ready|Erreur" \
-    | grep --color=always -E "ERROR|$" \
+    "sudo journalctl -u r2d2-slave -b --no-pager -n $TAIL --output=short-iso 2>/dev/null" 2>/dev/null \
+    | grep -iE "servo|SRV|pca|smbus|error|warn|prêt|setup|Erreur" \
     | tail -40
 
 echo ""
-echo "--- TOUTES les lignes servo/erreur ---"
+echo "--- Lignes traceback / exception ---"
 ssh -o ConnectTimeout=5 $SLAVE \
-    "sudo journalctl -u r2d2-slave --no-pager -n $TAIL --output=short-iso 2>/dev/null" 2>/dev/null \
-    | grep -iE "servo|body_servo|SRV|pca|smbus|ERROR|WARN|Erreur" | tail -30
+    "sudo journalctl -u r2d2-slave -b --no-pager -n $TAIL --output=short-iso 2>/dev/null" 2>/dev/null \
+    | grep -iE "traceback|Exception|NoneType|AttributeError|TypeError" | tail -20
 
 # ──────────────────────────────────────────────
 # 7. Registres PCA9685 — état actuel (MODE1)
 # ──────────────────────────────────────────────
 echo ""
 echo "=== MODE1 PCA9685 (état sleep/wake) ==="
-ssh -o ConnectTimeout=5 $MASTER "python3 -c \"
+python3 -c "
 import smbus2
 b = smbus2.SMBus(1)
 mode1 = b.read_byte_data(0x40, 0x00)
 b.close()
 sleep = bool(mode1 & 0x10)
 print(f'Master 0x40 MODE1=0x{mode1:02X} → {\"SLEEPING\" if sleep else \"AWAKE\"}')
-\"" 2>/dev/null || err "Impossible de lire MODE1 Master"
+" 2>/dev/null || err "Impossible de lire MODE1 Master (smbus2 manquant ou chip absent)"
 
 ssh -o ConnectTimeout=5 $SLAVE "python3 -c \"
 import smbus2
