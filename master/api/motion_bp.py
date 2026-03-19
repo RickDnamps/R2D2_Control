@@ -13,10 +13,15 @@ Endpoints dôme:
   POST /motion/dome/stop
   POST /motion/dome/random  {"enabled": true}
   GET  /motion/dome/state
+
+Sécurité : chaque commande de mouvement alimente le MotionWatchdog.
+Si aucune commande reçue pendant 800ms alors que le robot est en mouvement
+→ arrêt automatique (perte de connexion contrôleur).
 """
 
 from flask import Blueprint, request, jsonify
 import master.registry as reg
+from master.motion_watchdog import motion_watchdog
 
 motion_bp = Blueprint('motion', __name__, url_prefix='/motion')
 
@@ -35,10 +40,12 @@ def drive():
     body  = request.get_json(silent=True) or {}
     left  = _clamp(float(body.get('left',  0.0)))
     right = _clamp(float(body.get('right', 0.0)))
+
+    motion_watchdog.feed_drive(left, right)   # alimente le watchdog
+
     if reg.vesc:
         reg.vesc.drive(left, right)
     elif reg.uart:
-        # Fallback: envoyer directement via UART si VescDriver non initialisé
         reg.uart.send('M', f'{left:.3f},{right:.3f}')
     return jsonify({'status': 'ok', 'left': left, 'right': right})
 
@@ -49,6 +56,12 @@ def arcade():
     body     = request.get_json(silent=True) or {}
     throttle = _clamp(float(body.get('throttle', 0.0)))
     steering = _clamp(float(body.get('steering', 0.0)))
+
+    # Conversion arcade → différentielle pour alimenter le watchdog
+    left  = _clamp(throttle + steering)
+    right = _clamp(throttle - steering)
+    motion_watchdog.feed_drive(left, right)
+
     if reg.vesc:
         reg.vesc.arcade_drive(throttle, steering)
     return jsonify({'status': 'ok', 'throttle': throttle, 'steering': steering})
@@ -57,6 +70,7 @@ def arcade():
 @motion_bp.post('/stop')
 def stop_motion():
     """Arrêt propulsion."""
+    motion_watchdog.clear_drive()             # stop explicite — pas un timeout
     if reg.vesc:
         reg.vesc.stop()
     elif reg.uart:
@@ -80,6 +94,9 @@ def dome_turn():
     """Rotation dôme. Body: {"speed": float}"""
     body  = request.get_json(silent=True) or {}
     speed = _clamp(float(body.get('speed', 0.0)))
+
+    motion_watchdog.feed_dome(speed)          # alimente le watchdog
+
     if reg.dome:
         reg.dome.turn(speed)
     elif reg.uart:
@@ -90,6 +107,7 @@ def dome_turn():
 @motion_bp.post('/dome/stop')
 def dome_stop():
     """Arrêt rotation dôme."""
+    motion_watchdog.clear_dome()
     if reg.dome:
         reg.dome.stop()
     elif reg.uart:
@@ -102,6 +120,8 @@ def dome_random():
     """Mode aléatoire dôme. Body: {"enabled": bool}"""
     body    = request.get_json(silent=True) or {}
     enabled = bool(body.get('enabled', False))
+    if not enabled:
+        motion_watchdog.clear_dome()
     if reg.dome:
         reg.dome.set_random(enabled)
     return jsonify({'status': 'ok', 'random': enabled})

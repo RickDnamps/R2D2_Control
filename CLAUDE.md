@@ -798,6 +798,13 @@ TX d'un côté = toujours sur RX de l'autre. Règle physique universelle.
 > ssh artoo@r2-slave.local "sudo systemctl stop r2d2-slave.service"
 > ```
 
+### Sécurité — MotionWatchdog ✅ Actif dès Phase 4
+- `master/motion_watchdog.py` — arrêt automatique si contrôleur déconnecté >800ms
+- Démarre dans `master/main.py` après Flask
+- `motion_bp.py` alimente le watchdog à chaque commande drive/dome
+- JS : keep-alive 200ms sur joystick (feed watchdog même si doigt immobile)
+- Chaîne complète : App →(800ms)→ MotionWatchdog →(UART stop)→ Slave →(500ms)→ WatchdogSlave →(PyVESC)→ Moteurs
+
 ### Phase 2 — Propulsion & Actionneurs 🔧 Code prêt — décommenter
 - [ ] **2.1** Brancher VESC USB `/dev/ttyACM0/1` → décommenter dans `slave/main.py`
 - [ ] **2.2** Brancher Waveshare Motor Driver HAT #15364 (TB6612, I2C 0x40) → décommenter `DomeMotorDriver` dans `master/main.py`

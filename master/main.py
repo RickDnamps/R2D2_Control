@@ -38,6 +38,7 @@ from master.drivers.dome_servo_driver  import DomeServoDriver
 
 # ---- Phase 4 — Décommenter pour activer ----
 from master.flask_app import create_app
+from master.motion_watchdog import motion_watchdog
 
 VERSION_FILE = "/home/artoo/r2d2/VERSION"
 
@@ -190,6 +191,9 @@ def main() -> None:
     )
     flask_thread.start()
     log.info(f"Flask démarré sur port {flask_port}")
+
+    # MotionWatchdog — arrêt auto si contrôleur déconnecté pendant 800ms
+    motion_watchdog.start()
 
     log.info("Master opérationnel")
 

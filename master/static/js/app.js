@@ -142,6 +142,7 @@ class VirtualJoystick {
     this.active = false;
     this.x = 0;
     this.y = 0;
+    this._keepAlive = null;  // timer keep-alive watchdog Master
     this._bind();
   }
 
@@ -160,6 +161,11 @@ class VirtualJoystick {
     this.active = true;
     this.ring.classList.add('active');
     this._move(ptr);
+    // Keep-alive : renvoie la position courante toutes les 200ms pendant que
+    // le joystick est tenu immobile — alimente le MotionWatchdog côté Master.
+    this._keepAlive = setInterval(() => {
+      if (this.active) this.onMove(this.x, this.y);
+    }, 200);
   }
 
   _move(ptr) {
@@ -203,6 +209,8 @@ class VirtualJoystick {
 
   _release() {
     this.active = false;
+    clearInterval(this._keepAlive);
+    this._keepAlive = null;
     this.x = 0;
     this.y = 0;
     this.ring.classList.remove('active');
