@@ -1,13 +1,13 @@
 """
 Slave Body Servo Driver — Phase 2.
-Reçoit les commandes SRV: du Master et pilote le PCA9685 I2C @ 0x41.
+Reçoit les commandes SRV: du Master et pilote le PCA9685 I2C @ 0x41 via smbus2.
 
 Servo continu : 1500µs=STOP, 1600µs=ouverture lente, 1400µs=fermeture lente.
 open()  → envoie PULSE_OPEN_US  pendant duration_ms → STOP automatique
 close() → envoie PULSE_CLOSED_US pendant duration_ms → STOP automatique
 
-Formule duty_cycle identique au script de test validé :
-    duty = int((pulse_us / 20000.0) * 65535)
+Formule 12-bit (registres PCA9685 hardware) :
+    tick = int((pulse_us / 20000.0) * 4096)
 """
 
 import logging
@@ -21,15 +21,16 @@ from shared.base_driver import BaseDriver
 
 log = logging.getLogger(__name__)
 
-PCA9685_ADDRESS = 0x41
-PCA9685_FREQ_HZ = 50
+PCA9685_ADDRESS  = 0x41
+PCA9685_FREQ_HZ  = 50
+MODE1_REG        = 0x00
+PRE_SCALE_REG    = 0xFE
+PRE_SCALE_50HZ   = 121
 
-# Servo continu — valeurs calquées sur test_servo_slave.py validé
-PULSE_STOP_US   = 1500  # STOP absolu
-PULSE_OPEN_US   = 1600  # ouverture lente (ajuster vers 1550 si trop vite)
-PULSE_CLOSED_US = 1400  # fermeture lente (ajuster vers 1450 si trop vite)
+PULSE_STOP_US    = 1500
+PULSE_OPEN_US    = 1600
+PULSE_CLOSED_US  = 1400
 
-# Canaux 0–10 → body_panel_1..11
 SERVO_MAP: dict[str, int] = {
     'body_panel_1':   0,
     'body_panel_2':   1,
@@ -45,50 +46,29 @@ SERVO_MAP: dict[str, int] = {
 }
 
 
-def _us_to_duty(pulse_us: float) -> int:
-    """Même formule que test_servo_slave.py — confirmée fonctionnelle."""
-    return int((pulse_us / 20000.0) * 65535)
+def _pulse_to_tick(pulse_us: float) -> int:
+    """Convertit µs en valeur 12-bit PCA9685 (registres hardware)."""
+    return max(0, min(4095, int(pulse_us / 20000.0 * 4096)))
 
 
 class BodyServoDriver(BaseDriver):
 
     def __init__(self, i2c_address: int = PCA9685_ADDRESS):
-        self._address       = i2c_address
-        self._pca           = None
-        self._ready         = False
-        self._lock          = threading.Lock()
+        self._address        = i2c_address
+        self._bus            = None
+        self._ready          = False
+        self._lock           = threading.Lock()
         self._cancel_events: dict[int, threading.Event] = {}
 
     def setup(self) -> bool:
         try:
-            import board, busio
-            from adafruit_pca9685 import PCA9685
-
-            # Réveiller le chip explicitement (peut être en sleep après estop.py)
-            try:
-                import smbus2
-                b = smbus2.SMBus(1)
-                b.write_byte_data(self._address, 0x00, 0x00)  # MODE1 = normal
-                b.close()
-                time.sleep(0.005)
-            except Exception:
-                pass
-
-            i2c = busio.I2C(board.SCL, board.SDA)
-            self._pca = PCA9685(i2c, address=self._address)
-            self._pca.frequency = PCA9685_FREQ_HZ
-
-            # FULL OFF sur tous les canaux — efface valeurs résiduelles du chip
-            for ch in range(16):
-                self._pca.channels[ch].duty_cycle = 0
-
+            import smbus2
+            self._bus = smbus2.SMBus(1)
+            self._init_chip()
             self._ready = True
-            log.info("BodyServoDriver prêt — PCA9685 @ 0x%02X, %d servos",
+            log.info("BodyServoDriver prêt — smbus2 @ 0x%02X, %d servos",
                      self._address, len(SERVO_MAP))
             return True
-        except ImportError:
-            log.error("adafruit-circuitpython-pca9685 non installé")
-            return False
         except Exception as e:
             log.error("Erreur init PCA9685 body: %s", e)
             return False
@@ -96,17 +76,19 @@ class BodyServoDriver(BaseDriver):
     def shutdown(self) -> None:
         for evt in self._cancel_events.values():
             evt.set()
-        if self._pca:
+        if self._bus:
             for ch in SERVO_MAP.values():
                 self._set_pulse(ch, PULSE_STOP_US)
             time.sleep(0.3)
             try:
-                import smbus2
-                b = smbus2.SMBus(1)
-                b.write_byte_data(self._address, 0x00, 0x10)  # SLEEP
-                b.close()
-            except Exception as e:
-                log.warning("Erreur sleep PCA9685 body: %s", e)
+                self._bus.write_byte_data(self._address, MODE1_REG, 0x10)  # SLEEP
+            except Exception:
+                pass
+            try:
+                self._bus.close()
+            except Exception:
+                pass
+        self._bus   = None
         self._ready = False
 
     def is_ready(self) -> bool:
@@ -131,7 +113,6 @@ class BodyServoDriver(BaseDriver):
             self.close(name, duration_ms)
 
     def move(self, name: str, position: float, duration_ms: int = 500) -> None:
-        """position 1.0 = open, 0.0 = close."""
         if position >= 0.5:
             self.open(name, duration_ms)
         else:
@@ -154,29 +135,58 @@ class BodyServoDriver(BaseDriver):
     # Interne
     # ------------------------------------------------------------------
 
+    def _init_chip(self) -> None:
+        """Initialise le PCA9685 : fréquence 50Hz + zéro tous les canaux."""
+        self._bus.write_byte_data(self._address, MODE1_REG, 0x00)
+        time.sleep(0.005)
+        self._bus.write_byte_data(self._address, MODE1_REG, 0x10)
+        time.sleep(0.005)
+        self._bus.write_byte_data(self._address, PRE_SCALE_REG, PRE_SCALE_50HZ)
+        self._bus.write_byte_data(self._address, MODE1_REG, 0x00)
+        time.sleep(0.005)
+        for ch in range(16):
+            self._full_off(ch)
+        log.debug("PCA9685 @ 0x%02X initialisé 50Hz", self._address)
+
     def _ensure_awake(self) -> None:
-        """Réveille le chip si en sleep (ex: après estop.py ou test_servos.sh)."""
+        """Réveille le chip s'il est en sleep (ex: après estop.py)."""
         try:
-            import smbus2
-            b = smbus2.SMBus(1)
-            mode1 = b.read_byte_data(self._address, 0x00)
-            if mode1 & 0x10:  # bit SLEEP actif
-                b.write_byte_data(self._address, 0x00, mode1 & ~0x10)
-                time.sleep(0.001)
+            mode1 = self._bus.read_byte_data(self._address, MODE1_REG)
+            if mode1 & 0x10:
+                self._bus.write_byte_data(self._address, MODE1_REG, mode1 & ~0x10)
+                time.sleep(0.002)
                 log.info("PCA9685 @ 0x%02X réveillé (était en sleep)", self._address)
-            b.close()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("_ensure_awake 0x%02X: %s", self._address, e)
+
+    def _full_off(self, channel: int) -> None:
+        base = 0x06 + 4 * channel
+        self._bus.write_byte_data(self._address, base,     0x00)
+        self._bus.write_byte_data(self._address, base + 1, 0x00)
+        self._bus.write_byte_data(self._address, base + 2, 0x00)
+        self._bus.write_byte_data(self._address, base + 3, 0x10)
+
+    def _set_pulse(self, channel: int, pulse_us: float) -> None:
+        tick = _pulse_to_tick(pulse_us)
+        base = 0x06 + 4 * channel
+        with self._lock:
+            try:
+                self._bus.write_byte_data(self._address, base,     0x00)
+                self._bus.write_byte_data(self._address, base + 1, 0x00)
+                self._bus.write_byte_data(self._address, base + 2, tick & 0xFF)
+                self._bus.write_byte_data(self._address, base + 3, tick >> 8)
+            except Exception as e:
+                log.error("Erreur smbus2 canal body %d: %s", channel, e)
 
     def _move(self, name: str, pulse_us: int, duration_ms: int) -> None:
         if not self._ready:
+            log.warning("BodyServoDriver non prêt — commande ignorée (%r)", name)
             return
         if name not in SERVO_MAP:
             log.warning("Servo inconnu: %r", name)
             return
         channel = SERVO_MAP[name]
 
-        # Annuler mouvement précédent sur ce canal
         if channel in self._cancel_events:
             self._cancel_events[channel].set()
 
@@ -185,6 +195,7 @@ class BodyServoDriver(BaseDriver):
 
         self._ensure_awake()
         self._set_pulse(channel, pulse_us)
+        log.debug("Body servo %r ch%d → %dµs (%dms)", name, channel, pulse_us, duration_ms)
 
         if duration_ms > 0:
             threading.Thread(
@@ -193,18 +204,8 @@ class BodyServoDriver(BaseDriver):
                 daemon=True
             ).start()
 
-    def _set_pulse(self, channel: int, pulse_us: float) -> None:
-        """Formule identique à test_servo_slave.py."""
-        duty = _us_to_duty(pulse_us)
-        with self._lock:
-            try:
-                self._pca.channels[channel].duty_cycle = duty
-            except Exception as e:
-                log.error("Erreur PWM canal %d: %s", channel, e)
-
     def _timed_stop(self, channel: int, duration_ms: int,
                     cancel_evt: threading.Event) -> None:
-        """Attend duration_ms puis envoie STOP — servo continu."""
         time.sleep(duration_ms / 1000.0)
         if not cancel_evt.is_set():
             self._set_pulse(channel, PULSE_STOP_US)
