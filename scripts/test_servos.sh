@@ -29,8 +29,8 @@ python3 -c "import adafruit_pca9685" 2>/dev/null && echo "✓ adafruit-pca9685 d
 # SLAVE — vérification I2C + install + test
 # ──────────────────────────────────────────────
 echo ""
-echo "=== SLAVE — Sync code ==="
-ssh $SLAVE "cd $REPO && git pull -q" && echo "✓ Slave à jour" || echo "⚠ git pull Slave échoué — version locale"
+echo "=== SLAVE — Sync scripts ==="
+rsync -a $REPO/scripts/ $SLAVE:$REPO/scripts/ && echo "✓ Scripts synchronisés" || echo "⚠ rsync échoué"
 
 echo ""
 echo "=== SLAVE — I2C ==="
