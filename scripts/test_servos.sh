@@ -64,7 +64,17 @@ echo "  Master : PCA9685 @ 0x40, canal 0  (servo dôme)"
 echo "  Slave  : PCA9685 @ 0x41, canal 0  (servo body)"
 echo ""
 
-trap "echo ''; echo '=== Arrêt ==='; kill $MASTER_PID $SLAVE_PID 2>/dev/null; ssh $SLAVE 'pkill -f test_servo_slave' 2>/dev/null; exit 0" INT TERM
+cleanup() {
+    echo ""
+    echo "=== Arrêt ==="
+    # SIGINT pour déclencher except KeyboardInterrupt → pca.deinit() → servo s'arrête
+    pkill -INT -f test_servo_master.py 2>/dev/null
+    ssh $SLAVE "pkill -INT -f test_servo_slave.py" 2>/dev/null
+    sleep 1
+    kill $MASTER_PID $SLAVE_PID 2>/dev/null
+    exit 0
+}
+trap cleanup INT TERM
 
 python3 $REPO/scripts/test_servo_master.py 2>&1 | sed 's/^/[MASTER] /' &
 MASTER_PID=$!
