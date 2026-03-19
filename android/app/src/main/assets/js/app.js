@@ -28,7 +28,7 @@ async function api(endpoint, method = 'GET', body = null) {
   try {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body) opts.body = JSON.stringify(body);
-    const res = await fetch((window.R2D2_API_BASE || '') + endpoint, opts);
+    const res = await fetch(endpoint, opts);
     const data = await res.json();
     return data;
   } catch (e) {
@@ -432,45 +432,47 @@ function sendTeecesText()  { teecesController.sendText(el('teeces-text').value.t
 // ================================================================
 
 class ServoPanel {
-  constructor() {
-    this._servos = [
-      'utility_arm_left', 'utility_arm_right',
-      'panel_front_top',  'panel_front_bottom',
-      'panel_rear_top',   'panel_rear_bottom',
-      'charge_bay',
-    ];
-    this._state = {}; // name → 'open'|'close'
+  constructor(gridId, servos, apiPrefix) {
+    this._gridId    = gridId;
+    this._servos    = servos;
+    this._apiPrefix = apiPrefix;  // e.g. '/servo/dome' or '/servo/body'
+    this._state     = {};
     this._servos.forEach(n => this._state[n] = 'close');
     this.render();
   }
 
   render() {
-    const grid = el('servo-list');
+    const grid = el(this._gridId);
     if (!grid) return;
     grid.innerHTML = this._servos.map(name => {
-      const label = name.replace(/_/g, ' ').toUpperCase();
+      const num = name.split('_').pop();
+      const label = `PANEL ${num}`;
       return `
         <div class="servo-row" id="servo-row-${name}">
           <span class="servo-name">${label}</span>
           <div class="servo-pos-bar">
             <div class="servo-pos-fill" id="servo-fill-${name}" style="width:0%"></div>
           </div>
-          <button class="btn btn-sm" onclick="servoPanel.open('${name}')">OPEN</button>
-          <button class="btn btn-sm btn-dark" onclick="servoPanel.close('${name}')">CLOSE</button>
+          <button class="btn btn-sm" onclick="${this._getVar()}.open('${name}')">OPEN</button>
+          <button class="btn btn-sm btn-dark" onclick="${this._getVar()}.close('${name}')">CLOSE</button>
         </div>
       `;
     }).join('');
   }
 
+  _getVar() {
+    return this._apiPrefix.includes('dome') ? 'domeServoPanel' : 'bodyServoPanel';
+  }
+
   open(name) {
-    api('/servo/open', 'POST', { name }).then(d => {
+    api(`${this._apiPrefix}/open`, 'POST', { name }).then(d => {
       if (d) { toast(`${name}: OPEN`, 'ok'); this._setFill(name, 100); }
     });
     this._state[name] = 'open';
   }
 
   close(name) {
-    api('/servo/close', 'POST', { name }).then(d => {
+    api(`${this._apiPrefix}/close`, 'POST', { name }).then(d => {
       if (d) { toast(`${name}: CLOSE`, 'ok'); this._setFill(name, 0); }
     });
     this._state[name] = 'close';
@@ -482,7 +484,11 @@ class ServoPanel {
   }
 }
 
-const servoPanel = new ServoPanel();
+const DOME_SERVOS = Array.from({length: 11}, (_, i) => `dome_panel_${i + 1}`);
+const BODY_SERVOS = Array.from({length: 11}, (_, i) => `body_panel_${i + 1}`);
+
+const domeServoPanel = new ServoPanel('dome-servo-list', DOME_SERVOS, '/servo/dome');
+const bodyServoPanel = new ServoPanel('body-servo-list', BODY_SERVOS, '/servo/body');
 
 // ================================================================
 // Audio Board

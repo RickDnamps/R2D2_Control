@@ -30,17 +30,12 @@ log = logging.getLogger(__name__)
 # Durée par défaut d'un mouvement servo (ms)
 DEFAULT_DURATION_MS = 500
 
-# Catalogue des servos connus (nom → position ouverte/fermée typiques)
-# Permet la validation et le logging descriptif
+# Catalogue des servos body connus (envoyés via UART → Slave PCA9685 @ 0x41)
 KNOWN_SERVOS = {
-    'utility_arm_left',
-    'utility_arm_right',
-    'panel_front_top',
-    'panel_front_bottom',
-    'panel_rear_top',
-    'panel_rear_bottom',
-    'charge_bay',
-    'dome_hatch',
+    'body_panel_1',  'body_panel_2',  'body_panel_3',
+    'body_panel_4',  'body_panel_5',  'body_panel_6',
+    'body_panel_7',  'body_panel_8',  'body_panel_9',
+    'body_panel_10', 'body_panel_11',
 }
 
 

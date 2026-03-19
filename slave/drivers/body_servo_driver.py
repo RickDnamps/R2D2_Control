@@ -32,17 +32,25 @@ log = logging.getLogger(__name__)
 PCA9685_ADDRESS = 0x41
 PCA9685_FREQ_HZ = 50
 
+# Pulse fermé/ouvert — ~45° de débattement, safe pour SG90
+PULSE_CLOSED_US = 1000  # ~45° (position fermée)
+PULSE_OPEN_US   = 1500  # ~90° (position ouverte = +45°)
+
+# 11 panneaux body, canaux 0–10
 # Mapping nom → (channel, pulse_min_us, pulse_max_us)
 # pulse_min = position fermée, pulse_max = position ouverte
 SERVO_MAP: dict[str, tuple[int, int, int]] = {
-    'utility_arm_left':   (0, 1000, 2000),
-    'utility_arm_right':  (1, 1000, 2000),
-    'panel_front_top':    (2, 1000, 2000),
-    'panel_front_bottom': (3, 1000, 2000),
-    'panel_rear_top':     (4, 1000, 2000),
-    'panel_rear_bottom':  (5, 1000, 2000),
-    'charge_bay':         (6, 1000, 2000),
-    # Ajouter ici selon câblage réel
+    'body_panel_1':  (0,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_2':  (1,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_3':  (2,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_4':  (3,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_5':  (4,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_6':  (5,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_7':  (6,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_8':  (7,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_9':  (8,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_10': (9,  PULSE_CLOSED_US, PULSE_OPEN_US),
+    'body_panel_11': (10, PULSE_CLOSED_US, PULSE_OPEN_US),
 }
 
 
