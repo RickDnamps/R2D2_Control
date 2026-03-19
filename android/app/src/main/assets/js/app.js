@@ -71,7 +71,7 @@ function switchTab(tabId) {
   if (tabBtn) tabBtn.classList.add('active');
   if (tabContent) tabContent.classList.add('active');
 
-  if (tabId === 'config') loadSettings();
+  if (tabId === 'config') { loadSettings(); loadServoSettings(); }
   if (tabId === 'sequences') loadScripts();
   if (tabId === 'audio') loadAudioCategories();
 }
@@ -476,15 +476,17 @@ class ServoPanel {
   }
 
   open(name) {
-    api(`${this._apiPrefix}/open`, 'POST', { name }).then(d => {
-      if (d) { toast(`${name}: OPEN`, 'ok'); this._setFill(name, 100); }
+    const dur = _servoCfg.duration_ms;
+    api(`${this._apiPrefix}/open`, 'POST', { name, duration: dur }).then(d => {
+      if (d) { toast(`${name}: OPEN (${dur}ms)`, 'ok'); this._setFill(name, 100); }
     });
     this._state[name] = 'open';
   }
 
   close(name) {
-    api(`${this._apiPrefix}/close`, 'POST', { name }).then(d => {
-      if (d) { toast(`${name}: CLOSE`, 'ok'); this._setFill(name, 0); }
+    const dur = _servoCfg.duration_ms;
+    api(`${this._apiPrefix}/close`, 'POST', { name, duration: dur }).then(d => {
+      if (d) { toast(`${name}: CLOSE (${dur}ms)`, 'ok'); this._setFill(name, 0); }
     });
     this._state[name] = 'close';
   }
@@ -493,6 +495,51 @@ class ServoPanel {
     const f = el(`servo-fill-${name}`);
     if (f) f.style.width = pct + '%';
   }
+}
+
+// Servo calibration config (loaded from /servo/settings at init)
+let _servoCfg = { panel_angle: 70, panel_ms_90deg: 150, duration_ms: 117 };
+
+async function loadServoSettings() {
+  const data = await api('/servo/settings');
+  if (!data) return;
+  _servoCfg = data;
+  if (el('servo-angle'))  el('servo-angle').value  = data.panel_angle;
+  if (el('servo-ms90'))   el('servo-ms90').value   = data.panel_ms_90deg;
+  updateServoDurationPreview();
+}
+
+function updateServoDurationPreview() {
+  const angle = parseInt(el('servo-angle')?.value ?? _servoCfg.panel_angle);
+  const ms90  = parseInt(el('servo-ms90')?.value  ?? _servoCfg.panel_ms_90deg);
+  if (isNaN(angle) || isNaN(ms90)) return;
+  const dur = Math.max(50, Math.round(angle / 90 * ms90));
+  const prev = el('servo-duration-preview');
+  if (prev) prev.textContent = `Duration calculée: ${dur} ms`;
+  // Update live so open/close buttons use new value immediately
+  _servoCfg.duration_ms = dur;
+}
+
+async function saveServoSettings() {
+  const angle = parseInt(el('servo-angle')?.value ?? 70);
+  const ms90  = parseInt(el('servo-ms90')?.value  ?? 150);
+  const data  = await api('/servo/settings', 'POST', { panel_angle: angle, panel_ms_90deg: ms90 });
+  if (!data) { toast('Erreur réseau', 'error'); return; }
+  _servoCfg = data;
+  if (el('servo-angle')) el('servo-angle').value = data.panel_angle;
+  if (el('servo-ms90'))  el('servo-ms90').value  = data.panel_ms_90deg;
+  updateServoDurationPreview();
+  if (data.warning) toast(data.warning, 'warn');
+  else toast(`Saved — ${data.duration_ms} ms / ouverture`, 'ok');
+}
+
+async function testServoSettings(dir) {
+  const angle = parseInt(el('servo-angle')?.value ?? _servoCfg.panel_angle);
+  const ms90  = parseInt(el('servo-ms90')?.value  ?? _servoCfg.panel_ms_90deg);
+  const dur   = Math.max(50, Math.round(angle / 90 * ms90));
+  const endpoint = dir === 'open' ? '/servo/dome/open' : '/servo/dome/close';
+  const data = await api(endpoint, 'POST', { name: 'dome_panel_1', duration: dur });
+  if (data) toast(`Test ${dir.toUpperCase()} — ${dur}ms`, 'ok');
 }
 
 const DOME_SERVOS = Array.from({length: 11}, (_, i) => `dome_panel_${i + 1}`);
@@ -1124,6 +1171,7 @@ async function init() {
     audioBoard.loadCategories(),
     scriptEngine.load(),
     poller.poll(),
+    loadServoSettings(),
   ]);
 
   // Start polling

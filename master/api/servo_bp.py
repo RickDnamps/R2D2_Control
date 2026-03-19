@@ -21,10 +21,41 @@ Endpoints dôme (Master PCA9685 @ 0x40 direct):
   GET  /servo/dome/state
 """
 
+import configparser
+import os
+
 from flask import Blueprint, request, jsonify
 import master.registry as reg
 
 servo_bp = Blueprint('servo', __name__, url_prefix='/servo')
+
+_MAIN_CFG  = '/home/artoo/r2d2/master/config/main.cfg'
+_LOCAL_CFG = '/home/artoo/r2d2/master/config/local.cfg'
+_MAX_ANGLE = 90
+
+
+def _read_servo_cfg() -> tuple[int, int]:
+    cfg = configparser.ConfigParser()
+    cfg.read([_MAIN_CFG, _LOCAL_CFG])
+    angle = max(0, min(_MAX_ANGLE, cfg.getint('servo', 'panel_angle',    fallback=70)))
+    ms90  = max(50,                cfg.getint('servo', 'panel_ms_90deg', fallback=150))
+    return angle, ms90
+
+
+def _write_servo_cfg(angle: int, ms90: int) -> None:
+    cfg = configparser.ConfigParser()
+    if os.path.exists(_LOCAL_CFG):
+        cfg.read(_LOCAL_CFG)
+    if not cfg.has_section('servo'):
+        cfg.add_section('servo')
+    cfg.set('servo', 'panel_angle',    str(angle))
+    cfg.set('servo', 'panel_ms_90deg', str(ms90))
+    with open(_LOCAL_CFG, 'w', encoding='utf-8') as f:
+        cfg.write(f)
+
+
+def _angle_to_ms(angle: int, ms90: int) -> int:
+    return max(50, int(angle / 90.0 * ms90))
 
 BODY_SERVOS = [f'body_panel_{i}' for i in range(1, 12)]
 DOME_SERVOS = [f'dome_panel_{i}' for i in range(1, 12)]
@@ -208,3 +239,39 @@ def servo_close_all():
     if reg.dome_servo:
         reg.dome_servo.close_all(duration)
     return jsonify({'status': 'ok'})
+
+
+# ================================================================
+# Calibration — angle cible + durée
+# ================================================================
+
+@servo_bp.get('/settings')
+def servo_settings_get():
+    angle, ms90 = _read_servo_cfg()
+    return jsonify({
+        'panel_angle':    angle,
+        'panel_ms_90deg': ms90,
+        'duration_ms':    _angle_to_ms(angle, ms90),
+    })
+
+
+@servo_bp.post('/settings')
+def servo_settings_save():
+    data  = request.get_json(silent=True) or {}
+    angle = int(data.get('panel_angle',    70))
+    ms90  = int(data.get('panel_ms_90deg', 150))
+
+    clamped = angle > _MAX_ANGLE
+    angle   = max(0, min(_MAX_ANGLE, angle))
+    ms90    = max(50, min(2000, ms90))
+
+    _write_servo_cfg(angle, ms90)
+
+    resp = {
+        'panel_angle':    angle,
+        'panel_ms_90deg': ms90,
+        'duration_ms':    _angle_to_ms(angle, ms90),
+    }
+    if clamped:
+        resp['warning'] = f'Angle limité à {_MAX_ANGLE}° maximum'
+    return jsonify(resp)
