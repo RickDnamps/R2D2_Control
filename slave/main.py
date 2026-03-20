@@ -23,6 +23,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from slave.uart_listener import UARTListener
+from slave.uart_health_server import start_health_server
 from slave.watchdog import WatchdogController
 from slave.version_check import VersionChecker
 from slave.drivers.display_driver import DisplayDriver
@@ -153,6 +154,11 @@ def main() -> None:
     else:
         log.warning("BodyServoDriver indisponible")
         display.boot_fail('SERVOS')
+
+    # ------------------------------------------------------------------
+    # Health Monitor — HTTP port 5001, expose stats UART au Master
+    # ------------------------------------------------------------------
+    start_health_server(uart)
 
     # ------------------------------------------------------------------
     # Démarrer UART listener (thread)

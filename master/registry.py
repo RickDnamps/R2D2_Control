@@ -36,3 +36,8 @@ vesc_power_scale: float = 1.0
 # None = pas encore de résultat, [] = aucun VESC trouvé, [...] = IDs trouvés
 vesc_can_scan_result: list | None = None
 vesc_can_scan_event: threading.Event = threading.Event()
+
+# Santé UART Slave — mis à jour par le thread slave-health-poll dans main.py
+# None = Slave injoignable ou pas encore pollé
+# dict: {'total': N, 'errors': E, 'health_pct': 98.1, 'window_s': 60}
+slave_uart_health: dict | None = None

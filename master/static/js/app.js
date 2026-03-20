@@ -1121,6 +1121,7 @@ class StatusPoller {
 
     this._setPill('pill-heartbeat', data.heartbeat_ok, 'HB');
     this._setPill('pill-uart',      data.uart_ready,   'UART');
+    this._setHealthPill(data.uart_health);
 
     const version = el('pill-version');
     if (version) version.textContent = 'v' + (data.version || '?');
@@ -1179,7 +1180,7 @@ class StatusPoller {
     this._offline = offline;
     const pillOffline = el('pill-offline');
     if (pillOffline) pillOffline.style.display = offline ? '' : 'none';
-    ['pill-heartbeat', 'pill-uart', 'pill-bt', 'pill-version'].forEach(id => {
+    ['pill-heartbeat', 'pill-uart', 'pill-uart-health', 'pill-bt', 'pill-version'].forEach(id => {
       const p = el(id);
       if (p) p.style.display = offline ? 'none' : '';
     });
@@ -1188,6 +1189,29 @@ class StatusPoller {
       audioBoard.loadCategories();
       scriptEngine.load();
       loadServoSettings();
+    }
+  }
+
+  _setHealthPill(h) {
+    const p = el('pill-uart-health');
+    if (!p) return;
+    const dot = p.querySelector('.pulse-dot');
+    let cls, label;
+    if (h == null) {
+      cls   = 'status-pill';          // gris — Slave injoignable
+      label = 'BUS ?%';
+    } else {
+      const pct = h.health_pct;
+      cls   = 'status-pill ' + (pct >= 80 ? 'ok' : 'warn');
+      label = 'BUS ' + pct.toFixed(1) + '%';
+    }
+    p.className = cls;
+    if (dot) {
+      for (const node of p.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) node.textContent = label;
+      }
+    } else {
+      p.textContent = label;
     }
   }
 

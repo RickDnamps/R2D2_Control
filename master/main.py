@@ -301,6 +301,27 @@ def main() -> None:
     motion_watchdog.start()   # arrêt moteurs si plus de commande drive (800ms)
     app_watchdog.start()      # arrêt moteurs si heartbeat app absent (600ms)
 
+    # ------------------------------------------------------------------
+    # Slave Health Poll — lit http://r2-slave.local:5001/uart_health
+    # toutes les 5s via urllib (stdlib, zéro dépendance extra)
+    # ------------------------------------------------------------------
+    def _slave_health_poll() -> None:
+        import urllib.request
+        import json as _json
+        while True:
+            try:
+                with urllib.request.urlopen(
+                    'http://r2-slave.local:5001/uart_health', timeout=1
+                ) as resp:
+                    reg.slave_uart_health = _json.loads(resp.read())
+            except Exception:
+                reg.slave_uart_health = None
+            time.sleep(5)
+
+    threading.Thread(
+        target=_slave_health_poll, name='slave-health-poll', daemon=True
+    ).start()
+
     log.info("Master opérationnel")
 
     # Gestion arrêt propre

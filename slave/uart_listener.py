@@ -17,6 +17,7 @@ import time
 import traceback
 import os
 import sys
+from collections import deque
 
 import serial
 
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 
 MAX_INVALID_CRC_BEFORE_ALERT = 3
 _MAX_BUFFER = 4096
+_HEALTH_WINDOW_S = 60   # fenêtre glissante pour le calcul de santé UART
 
 
 class UARTListener:
@@ -38,6 +40,9 @@ class UARTListener:
         self._lock = threading.Lock()
         self._callbacks: dict[str, list] = {}
         self._invalid_crc_count = 0
+        # Santé UART — fenêtre glissante 60s : (timestamp, is_valid)
+        self._health_lock  = threading.Lock()
+        self._health_window: deque = deque()
 
     def setup(self) -> bool:
         try:
@@ -108,10 +113,39 @@ class UARTListener:
                           e, traceback.format_exc())
                 time.sleep(0.1)
 
+    def get_health_stats(self) -> dict:
+        """Retourne les stats de santé UART sur la fenêtre glissante de 60s.
+        Thread-safe — appelé depuis le serveur HTTP health (port 5001).
+        """
+        now = time.monotonic()
+        cutoff = now - _HEALTH_WINDOW_S
+        with self._health_lock:
+            # Pruning inline — évite un thread de nettoyage séparé
+            while self._health_window and self._health_window[0][0] < cutoff:
+                self._health_window.popleft()
+            total  = len(self._health_window)
+            errors = sum(1 for _, valid in self._health_window if not valid)
+        health_pct = round((total - errors) / total * 100, 1) if total > 0 else 100.0
+        return {
+            'total':      total,
+            'errors':     errors,
+            'health_pct': health_pct,
+            'window_s':   _HEALTH_WINDOW_S,
+        }
+
     def _process_line(self, line: str) -> None:
         if not line:
             return
         result = parse_msg(line)
+
+        # Santé UART — toute ligne non-vide compte comme tentative de lecture
+        now = time.monotonic()
+        with self._health_lock:
+            self._health_window.append((now, result is not None))
+            cutoff = now - _HEALTH_WINDOW_S
+            while self._health_window and self._health_window[0][0] < cutoff:
+                self._health_window.popleft()
+
         if result is None:
             self._invalid_crc_count += 1
             if self._invalid_crc_count >= MAX_INVALID_CRC_BEFORE_ALERT:

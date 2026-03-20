@@ -69,6 +69,7 @@ def get_status():
         'servo_ready':      bool(reg.servo      and reg.servo.is_ready()),
         'dome_servo_ready': bool(reg.dome_servo and reg.dome_servo.is_ready()),
         'scripts_running': reg.engine.list_running() if reg.engine else [],
+        'uart_health':  reg.slave_uart_health,   # None si Slave injoignable
     })
 
 
