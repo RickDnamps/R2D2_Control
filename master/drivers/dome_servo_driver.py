@@ -66,6 +66,7 @@ class DomeServoDriver(BaseDriver):
         self._ready          = False
         self._lock           = threading.Lock()
         self._cancel_events: dict[int, threading.Event] = {}
+        self._error_count    = 0   # erreurs I2C consécutives
 
     def setup(self) -> bool:
         try:
@@ -172,6 +173,25 @@ class DomeServoDriver(BaseDriver):
         self._bus.write_byte_data(self._address, base + 2, 0x00)
         self._bus.write_byte_data(self._address, base + 3, 0x10)
 
+    def _try_reinit(self) -> None:
+        """Ferme et rouvre le bus I2C + réinitialise le PCA9685 après erreurs répétées.
+        Appelé automatiquement après 3 erreurs I2C consécutives (ex: glitch électrique
+        lors d'un changement de servo ou bref court-circuit)."""
+        try:
+            if self._bus:
+                try:
+                    self._bus.close()
+                except Exception:
+                    pass
+            import smbus2
+            self._bus = smbus2.SMBus(1)
+            self._init_chip()
+            self._error_count = 0
+            log.info("PCA9685 @ 0x%02X réinitialisé avec succès après erreurs I2C",
+                     self._address)
+        except Exception as e:
+            log.error("Échec réinitialisation PCA9685 @ 0x%02X: %s", self._address, e)
+
     def _set_pulse(self, channel: int, pulse_us: float) -> None:
         tick = _pulse_to_tick(pulse_us)
         base = 0x06 + 4 * channel
@@ -181,8 +201,15 @@ class DomeServoDriver(BaseDriver):
                 self._bus.write_byte_data(self._address, base + 1, 0x00)
                 self._bus.write_byte_data(self._address, base + 2, tick & 0xFF)
                 self._bus.write_byte_data(self._address, base + 3, tick >> 8)
+                self._error_count = 0  # succès — reset compteur
             except Exception as e:
-                log.error("Erreur smbus2 canal dôme %d: %s", channel, e)
+                self._error_count += 1
+                log.error("Erreur smbus2 canal dôme %d: %s (consécutive: %d)",
+                           channel, e, self._error_count)
+                if self._error_count >= 3:
+                    log.warning("PCA9685 @ 0x%02X — %d erreurs I2C, réinitialisation...",
+                                self._address, self._error_count)
+                    self._try_reinit()
 
     def _move(self, name: str, pulse_us: int, duration_ms: int) -> bool:
         if not self._ready:

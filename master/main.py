@@ -45,12 +45,73 @@ VERSION_FILE = "/home/artoo/r2d2/VERSION"
 
 
 def setup_logging(level_str: str) -> None:
+    from logging.handlers import RotatingFileHandler
     level = getattr(logging, level_str.upper(), logging.INFO)
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
+    fmt = logging.Formatter(
+        '%(asctime)s [%(name)s] %(levelname)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    root = logging.getLogger()
+    root.setLevel(level)
+    # Console (journald)
+    ch = logging.StreamHandler()
+    ch.setFormatter(fmt)
+    root.addHandler(ch)
+    # Fichier rotatif persistant — survit aux reboots, gitignored (debug/)
+    log_dir = '/home/artoo/r2d2/debug'
+    os.makedirs(log_dir, exist_ok=True)
+    fh = RotatingFileHandler(
+        os.path.join(log_dir, 'master.log'),
+        maxBytes=5 * 1024 * 1024,   # 5 MB par fichier
+        backupCount=3,               # master.log + master.log.1/2/3
+        encoding='utf-8'
+    )
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+
+
+def _start_network_monitor() -> None:
+    """Thread daemon — surveille wlan0/wlan1 toutes les 30s et log les changements."""
+    import subprocess
+    log_net = logging.getLogger('network')
+
+    def _iface_state(iface: str) -> tuple[bool, str]:
+        try:
+            r = subprocess.run(['ip', 'addr', 'show', iface],
+                               capture_output=True, text=True, timeout=3)
+            for line in r.stdout.splitlines():
+                line = line.strip()
+                if line.startswith('inet '):
+                    return True, line.split()[1]
+            return False, ''
+        except Exception:
+            return False, ''
+
+    prev: dict[str, bool] = {}
+
+    def _log_initial() -> None:
+        for iface in ('wlan0', 'wlan1'):
+            up, ip = _iface_state(iface)
+            prev[iface] = up
+            if up:
+                log_net.info("%s connecté au boot — IP: %s", iface, ip)
+            else:
+                log_net.warning("%s non disponible au boot", iface)
+
+    def _monitor() -> None:
+        while True:
+            time.sleep(30)
+            for iface in ('wlan0', 'wlan1'):
+                up, ip = _iface_state(iface)
+                if prev.get(iface) != up:
+                    if up:
+                        log_net.info("%s reconnecté — IP: %s", iface, ip)
+                    else:
+                        log_net.warning("%s déconnecté !", iface)
+                    prev[iface] = up
+
+    _log_initial()
+    threading.Thread(target=_monitor, name='network-monitor', daemon=True).start()
 
 
 def try_git_pull(cfg: configparser.ConfigParser) -> bool:
@@ -109,6 +170,7 @@ def main() -> None:
     setup_logging(cfg.get('master', 'log_level', fallback='INFO'))
     log = logging.getLogger(__name__)
     log.info("=== R2-D2 Master démarrage ===")
+    _start_network_monitor()
 
     # Boot: tentative git pull
     try_git_pull(cfg)
