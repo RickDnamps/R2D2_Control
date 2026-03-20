@@ -1,111 +1,191 @@
-# R2D2_Control
+<div align="center">
 
-Full-scale R2-D2 replica control system running on two Raspberry Pi 4B in a Master/Slave architecture, communicating over physical UART (through the dome slip ring) and local Wi-Fi.
+# 🤖 R2D2_Control
 
-> **Alpha Phase** — Software is functional and actively tested on bench hardware. Physical assembly (3D-printed parts, slip ring, final wiring) is still in progress. No camera stream yet.
+**Full-scale R2-D2 replica — distributed control system on two Raspberry Pi 4B**
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://python.org)
+[![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%204B-C51A4A?logo=raspberry-pi&logoColor=white)](https://www.raspberrypi.com/)
+[![Phase](https://img.shields.io/badge/Phase-Alpha-orange)](ELECTRONICS.md)
+[![Android](https://img.shields.io/badge/Android-App%20included-3DDC84?logo=android&logoColor=white)](android/compiled/)
+
+*Master/Slave architecture · UART through slip ring · Web dashboard · Android app · 317 R2-D2 sounds · 40 behavior scripts*
+
+</div>
+
+---
+
+> **Alpha Phase** — Software is complete and actively tested on bench hardware. Physical assembly (3D-printed parts, slip ring, final wiring) is in progress. No camera stream yet.
 
 ---
 
 ## Screenshots
 
-### Drive Interface
-Dual joystick control with WASD keyboard support, emergency stop, and battery gauge.
+<table>
+<tr>
+<td align="center" width="50%">
+
+### 🕹️ Drive
+Dual joystick · WASD keyboard · Emergency stop · Battery gauge
 
 ![Drive Interface](Screenshots/Drive_web_interface.jpg)
 
-### Audio
-317 R2-D2 sounds across 14 categories — play specific sounds or trigger random ones by mood.
+</td>
+<td align="center" width="50%">
+
+### 🔊 Audio
+317 R2-D2 sounds · 14 mood categories · Random or specific
 
 ![Audio Interface](Screenshots/Audio_web_interface.jpg)
 
-### Sequences
-40 pre-built behavioral scripts (patrol, celebrate, Cantina, Leia, evil, malfunction…) — run once or loop.
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+
+### 🎬 Sequences
+40 behavioral scripts · Run once or loop · Patrol, Cantina, Leia, Evil…
 
 ![Sequences Interface](Screenshots/Sequences_web_interface.jpg)
 
-### Systems & Servo Control
-Teeces32 LED logic control, independent dome panel servos (×11) and body panel servos (×11), Bluetooth controller mapping.
+</td>
+<td align="center" width="50%">
+
+### ⚙️ Systems & Servos
+Teeces32 LEDs · 11 dome panels · 11 body panels · Bluetooth mapping
 
 ![Systems Interface](Screenshots/Systems_TemporaryServos_web_interface.jpg)
 
-### Configuration
-Wi-Fi, hotspot, GitHub/auto-deploy settings, per-panel servo calibration, and system controls.
+</td>
+</tr>
+<tr>
+<td align="center" colspan="2">
+
+### 🔧 Configuration
+Per-panel servo calibration · Wi-Fi settings · Auto-deploy · System controls
 
 ![Config Interface](Screenshots/Config_web_interface.jpg)
+
+</td>
+</tr>
+</table>
+
+---
+
+## What is this?
+
+A complete control system for a **1:1 scale R2-D2 replica**, built around a Master/Slave architecture:
+
+- **Master Pi** (dome) — web server, dome servos, LED logics, script engine, deploy controller
+- **Slave Pi** (body) — drive motors, body servos, dome rotation, audio, diagnostic display
+- They talk over a **physical UART through the dome slip ring**, with a hardware watchdog that cuts the drive motors if the link is lost
+
+The web dashboard runs on the Master and is accessible from any phone or PC on the local Wi-Fi hotspot. An Android app wraps the same interface with native offline detection and auto-discovery.
 
 ---
 
 ## Features
 
-- **Distributed architecture** — Master Pi (dome, rotates with slip ring) + Slave Pi (body, fixed)
-- **UART heartbeat watchdog** — Slave cuts drive motors within 500ms if Master goes offline (safety-critical)
-- **Web dashboard** — Dark theme, mobile-friendly, WASD/arrow key drive control, REST polling
-- **Android app** — WebView wrapper with offline asset bundling, native connectivity banner, auto-discovery
-- **317 R2-D2 sounds** in 14 categories (sourced from dpoulson/r2_control + extras)
-- **40 behavior scripts** (.scr CSV format) — 26 faithful dpoulson ports + 14 custom sequences
-- **Dome servos** — 11 panels via PCA9685 I2C on Master (0x40)
-- **Body servos** — 11 panels via PCA9685 I2C on Slave (0x41)
-- **Per-panel servo calibration** — individual open/close angles in web Settings
-- **Teeces32 LED logics** — random, Leia, off, scrolling text, PSI modes via JawaLite protocol
-- **Auto-deploy** — dome button triggers git pull + rsync to Slave + reboot
-- **RP2040 diagnostic display** — boot/sync/error/telemetry states on round 240×240 LCD
-- **3-layer motion safety** — app heartbeat watchdog (600ms) + drive timeout watchdog (800ms) + UART watchdog (500ms)
-- **Graceful deceleration** — speed ramp to 0 on watchdog trip (no hard stops at speed)
+### Control
+- 🕹️ **Dual joystick web interface** — mobile-first, WASD keyboard support
+- 📱 **Android app** — bundled offline assets, auto-discovers Master on network
+- 🎮 **Bluetooth controller mapping** — configurable button/axis assignments
 
----
+### Motion
+- ⚙️ **2× FSESC Mini 6.7 PRO** — PyVESC over USB, 24V hub motors 250W
+- 🎩 **Dome rotation** — DC motor via TB6612 Motor HAT, random mode
+- 🦾 **22 servo panels** — 11 dome + 11 body, individually calibrated open/close angles
 
-## Hardware Overview
+### Audio & Lights
+- 🔊 **317 R2-D2 sounds** in 14 categories (happy, sad, alarm, scream, Cantina, Leia…)
+- 💡 **Teeces32 LED logics** — FLD/RLD/PSI, random mode, Leia mode, scrolling text
+- 🖥️ **RP2040 round LCD** — 240×240 diagnostic display (boot/sync/error/telemetry)
 
-### Master — Raspberry Pi 4B 4GB (Dome, rotates with slip ring)
+### Automation
+- 🎬 **40 behavioral scripts** — .scr CSV format, run in background threads
+  - 26 faithful ports from [dpoulson/r2_control](https://github.com/dpoulson/r2_control)
+  - 14 custom sequences (patrol, celebrate, birthday, disco, taunt, scan…)
 
-| Component | Interface | Details |
-|-----------|-----------|---------|
-| Waveshare Servo Driver HAT | I2C 0x40 | PCA9685 16ch — dome panel servos |
-| Teeces32 LED logics (FLD/RLD/PSI) | USB `/dev/ttyUSB0` | JawaLite protocol, 9600 baud |
-| Camera | USB | Vision / person tracking (Phase 5) |
-| UART to Slave Pi | BCM 14/15 `/dev/ttyAMA0` | Through slip ring, 3.3V |
+### Safety
+- 🛑 **3-layer watchdog system** — app heartbeat (600ms) + drive timeout (800ms) + UART watchdog (500ms)
+- 📉 **Graceful deceleration** — speed ramps to 0 on any watchdog trip, no hard stops at speed
+- 🔄 **I2C bus recovery** — automatic re-init after 3 consecutive errors
 
-### Slave — Raspberry Pi 4B 2GB (Body, fixed)
-
-| Component | Interface | Details |
-|-----------|-----------|---------|
-| Waveshare Motor Driver HAT | I2C 0x40 | TB6612 — dome rotation DC motor |
-| PCA9685 Breakout | I2C 0x41 | 16ch PWM — body/arm/panel servos |
-| FSESC Mini 6.7 PRO × 2 | USB `/dev/ttyACM0/1` | PyVESC — 24V drive motors |
-| RP2040 Touch LCD 1.28" | USB `/dev/ttyACM2` | 240×240 diagnostic display |
-| 3.5mm audio jack | Native Pi 4B | R2-D2 sounds → amp → speakers |
-| UART to Master Pi | BCM 14/15 `/dev/ttyAMA0` | Through slip ring, 3.3V |
-
-### Propulsion
-
-- 2× 250W/24V hub motors (double shaft) — drive wheels
-- 4× 58mm omni wheels — omnidirectional stabilization
-- 2× FSESC Mini 6.7 PRO (4–13S LiPo) — motor controllers
-- 6S LiPo 10 000mAh, XT90-S connector (anti-spark)
+### DevOps
+- 🚀 **One-button deploy** — dome button triggers git pull + rsync to Slave + reboot
+- 📦 **Auto-update on boot** — git pull if internet available, version sync via UART
+- 🔁 **Rollback** — long press dome button → `git checkout HEAD^`
+- 📋 **Persistent logs** — rotating log files survive reboots
 
 ---
 
 ## Architecture
 
 ```
-[PC / Phone]  ←WiFi→  [R2-Master Pi 4B — Dome]  ←UART slip ring→  [R2-Slave Pi 4B — Body]
-                              │                                              │
-                         Flask :5000                                   UART listener
-                         Dome servos (I2C 0x40)                        Watchdog (500ms)
-                         Teeces32 (USB)                                 Body servos (I2C 0x41)
-                         Script engine                                  Drive VESCs (USB)
-                         Deploy controller                              Dome motor (I2C 0x40)
-                                                                        Audio (3.5mm jack)
-                                                                        RP2040 display (USB)
+┌─────────────────────────────────────────────────────────────────┐
+│  📱 Phone / PC  ←── Wi-Fi (192.168.4.1:5000) ──→  🎩 MASTER Pi  │
+│                                                                  │
+│  R2-MASTER (Dome — rotates)          R2-SLAVE (Body — fixed)    │
+│  ├─ Flask REST API :5000             ├─ UART listener            │
+│  ├─ Script engine (40 sequences)     ├─ Watchdog 500ms → VESCs  │
+│  ├─ Dome servos   I2C 0x40          ├─ Body servos  I2C 0x41   │
+│  ├─ Teeces32 LEDs USB               ├─ Dome motor   I2C 0x40   │
+│  └─ Deploy controller               ├─ Drive VESCs  USB ×2     │
+│                                     ├─ Audio        3.5mm jack  │
+│         UART 115200 baud            └─ RP2040 LCD   USB        │
+│    ←─── through slip ring ────►                                 │
+│    (heartbeat every 200ms)                                      │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Network
+### Hardware at a glance
 
+| | **Master Pi 4B 4GB** (Dome) | **Slave Pi 4B 2GB** (Body) |
+|---|---|---|
+| **Servos** | 11 dome panels — PCA9685 @ I2C 0x40 | 11 body panels — PCA9685 @ I2C 0x41 |
+| **Motors** | — | 2× 250W hub motors via FSESC VESCs |
+| **Dome motor** | — | DC motor via TB6612 HAT @ I2C 0x40 |
+| **LEDs** | Teeces32 FLD/RLD/PSI via USB | — |
+| **Audio** | — | 317 sounds, 3.5mm jack native |
+| **Display** | — | RP2040 240×240 round LCD |
+| **Power** | 5V/10A buck via GPIO 2&4 | 5V/10A + 12V/10A bucks |
+
+📐 **[Full electronics diagrams, power wiring & protocol reference →](ELECTRONICS.md)**
+
+---
+
+## Quick Start
+
+### Prerequisites
+- 2× Raspberry Pi 4B (username: `artoo` — set in Raspberry Pi Imager)
+- Both running Raspberry Pi OS Trixie (64-bit)
+- A USB Wi-Fi adapter for the Master Pi (for internet while hosting hotspot)
+
+### Installation
+
+```bash
+# On Master Pi — configure network (Wi-Fi hotspot + internet)
+bash scripts/setup_master_network.sh
+
+# On Slave Pi — connect to Master hotspot
+bash scripts/setup_slave_network.sh
+
+# On Master Pi — passwordless SSH for auto-deploy
+bash scripts/setup_ssh_keys.sh
+
+# Enable services
+sudo systemctl enable r2d2-master.service r2d2-monitor.service
+sudo systemctl enable r2d2-slave.service   # on Slave Pi
 ```
-R2-Master  wlan0 → Wi-Fi hotspot (AP)  192.168.4.1   SSID: R2D2_Control
-           wlan1 → Home Wi-Fi (client) DHCP           (for git pull / updates)
-R2-Slave   wlan0 → Client of Master hotspot  192.168.4.x
-```
+
+Access the dashboard at **`http://192.168.4.1:5000`** or **`http://r2-master.local:5000`**
+
+📖 **[Full installation guide (French) →](HOWTO.md)**
+
+### Android App
+
+Download [`android/compiled/R2-D2_Control.apk`](android/compiled/R2-D2_Control.apk), enable *Install from unknown sources*, install and launch. The app auto-discovers the Master Pi on the network.
 
 ---
 
@@ -113,66 +193,58 @@ R2-Slave   wlan0 → Client of Master hotspot  192.168.4.x
 
 ```
 r2d2/
-├── master/          — Master Pi code (dome)
+├── master/              — Master Pi (dome)
+│   ├── main.py          — Boot sequence, all phases
+│   ├── drivers/         — VescDriver, DomeMotorDriver, DomeServoDriver, BodyServoDriver
+│   ├── api/             — Flask blueprints (audio, motion, servo, scripts, teeces, status)
+│   ├── scripts/         — 40 behavioral scripts (.scr)
+│   ├── templates/       — Web dashboard HTML (dark theme)
+│   └── static/          — CSS + JavaScript
+├── slave/               — Slave Pi (body)
 │   ├── main.py
-│   ├── drivers/     — VescDriver, DomeMotorDriver, DomeServoDriver, BodyServoDriver
-│   ├── api/         — Flask blueprints (audio, motion, servo, scripts, teeces, status)
-│   ├── scripts/     — 40 behavioral scripts (.scr)
-│   ├── templates/   — Web dashboard HTML
-│   └── static/      — CSS + JS
-├── slave/           — Slave Pi code (body)
-│   ├── main.py
-│   ├── drivers/     — AudioDriver, DisplayDriver, VescDriver, BodyServoDriver
-│   └── sounds/      — sounds_index.json (MP3 files gitignored — too large)
-├── shared/          — uart_protocol.py (CRC), base_driver.py
-├── rp2040/          — MicroPython firmware for diagnostic display
-├── android/         — Android app (WebView wrapper)
-│   └── compiled/    — R2-D2_Control.apk (ready to install)
-├── scripts/         — deploy.sh, setup_master_network.sh, setup_slave_network.sh
-├── Screenshots/     — Web interface screenshots
-└── HOWTO.md         — Installation guide (French)
+│   ├── drivers/         — AudioDriver, DisplayDriver, VescDriver, BodyServoDriver
+│   └── sounds/          — sounds_index.json (MP3 files gitignored — stored on Pi only)
+├── shared/              — uart_protocol.py (CRC-XOR), base_driver.py
+├── rp2040/              — MicroPython firmware for diagnostic display
+├── android/             — Android app (WebView wrapper)
+│   └── compiled/        — R2-D2_Control.apk  ← ready to install
+├── scripts/             — deploy.sh, setup_*.sh, vendor_deps.sh
+├── Screenshots/         — Web interface screenshots
+├── ELECTRONICS.md       — 📐 Full wiring diagrams & protocol reference
+└── HOWTO.md             — 📖 Installation guide (French)
 ```
 
 ---
 
-## Installation
-
-See [HOWTO.md](HOWTO.md) for the full step-by-step installation guide (French).
-
-Quick overview:
-1. Flash two Pi 4B SD cards (username: `artoo`) using Raspberry Pi Imager
-2. Run `scripts/setup_master_network.sh` on Master → configures Wi-Fi hotspot + internet
-3. Run `scripts/setup_slave_network.sh` on Slave → connects to Master hotspot
-4. Run `scripts/setup_ssh_keys.sh` → passwordless SSH Master → Slave
-5. Enable systemd services on both Pis
-6. Access dashboard at `http://r2-master.local:5000` or `http://192.168.4.1:5000`
-
-### Android App
-
-Download `android/compiled/R2-D2_Control.apk`, enable "Install from unknown sources", install and launch. The app auto-discovers the Master Pi on the network.
-
----
-
-## Development Status
+## Development Roadmap
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| 1 | Infrastructure: UART, heartbeat watchdog, audio, Teeces32, RP2040, deploy button | ✅ Code complete, bench tested |
-| 2 | Propulsion: VESCs, dome motor, body/dome servo panels | 🔧 Code ready — hardware assembly pending |
-| 3 | Script engine: 40 behavioral sequences | ✅ Active |
-| 4 | REST API + Web dashboard + Android app | ✅ Active |
-| 5 | Vision: USB camera, person tracking | 📋 Planned |
+| **1** | Infrastructure: UART, heartbeat watchdog, audio, Teeces32, RP2040, deploy | ✅ Complete — bench tested |
+| **2** | Propulsion: VESCs, dome motor, servo panels | 🔧 Code ready — hardware assembly in progress |
+| **3** | Script engine: 40 behavioral sequences | ✅ Active |
+| **4** | REST API + Web dashboard + Android app | ✅ Active |
+| **5** | Vision: USB camera, person tracking | 📋 Planned |
 
-> Physical assembly is in progress — 3D-printed parts printing, slip ring not yet received.
-> All current testing is done on bench/breadboard with direct BCM14/15 UART connection.
+> Physical assembly is in progress — 3D parts printing, slip ring ordered.
+> All current testing is on bench with direct BCM14/15 UART wiring.
 
 ---
 
-## Credits
+## Credits & Inspiration
 
-- Sound library and script format inspired by [r2_control by dpoulson](https://github.com/dpoulson/r2_control)
-- 306 R2-D2 sounds sourced from dpoulson's collection
+- Sound library and script format inspired by **[r2_control by dpoulson](https://github.com/dpoulson/r2_control)** — 306 R2-D2 sounds + script thread concept
+- R2-D2 Builders Club community for hardware knowledge
 
 ## License
 
-GNU GPL v3 — see [LICENSE](LICENSE)
+**GNU GPL v3** — see [LICENSE](LICENSE).
+Free to use, modify and share — keep it open source.
+
+---
+
+<div align="center">
+
+*May the Force be with you.* 🌟
+
+</div>
