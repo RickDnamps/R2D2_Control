@@ -42,11 +42,14 @@ fi
 log "Port RP2040 : $PORT"
 
 # ---------------------------------------------------------------------------
-# Installer ampy si absent
+# Installer ampy si absent — s'assurer que ~/.local/bin est dans PATH
 # ---------------------------------------------------------------------------
+export PATH="$HOME/.local/bin:$PATH"
+
 if ! command -v ampy &>/dev/null; then
     warn "ampy non trouvé — installation (adafruit-ampy)..."
     pip3 install --quiet --break-system-packages adafruit-ampy
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 
 # ---------------------------------------------------------------------------
