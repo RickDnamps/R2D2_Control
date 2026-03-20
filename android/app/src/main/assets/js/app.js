@@ -1179,16 +1179,22 @@ async function systemUpdate() {
 // Volume slider
 // ================================================================
 
+// ALSA bcm2835 maps 0-100% linearly onto ~-102dB..+4dB,
+// so 50% ALSA ≈ -49dB (nearly inaudible).
+// Square-root curve makes slider 50% → ALSA 71% (≈-28dB, usable).
+function _sliderToAlsa(v) { return Math.round(Math.sqrt(v / 100) * 100); }
+function _alsaToSlider(v) { return Math.round(Math.pow(v / 100, 2) * 100); }
+
 function initVolume() {
   const slider = document.getElementById('volume-slider');
   const label  = document.getElementById('volume-label');
   if (!slider) return;
 
-  // Load current volume
+  // Load current ALSA volume → convert back to slider position
   api('/audio/volume').then(d => {
     if (d && d.volume !== undefined) {
-      slider.value = d.volume;
-      label.textContent = d.volume + '%';
+      slider.value = _alsaToSlider(d.volume);
+      label.textContent = slider.value + '%';
       _updateSliderBg(slider);
     }
   });
@@ -1196,12 +1202,12 @@ function initVolume() {
   let _debounceTimer = null;
 
   slider.addEventListener('input', () => {
-    const v = parseInt(slider.value, 10);
-    label.textContent = v + '%';
+    const sliderVal = parseInt(slider.value, 10);
+    label.textContent = sliderVal + '%';
     _updateSliderBg(slider);
     clearTimeout(_debounceTimer);
     _debounceTimer = setTimeout(() => {
-      api('/audio/volume', 'POST', { volume: v }).catch(() => {});
+      api('/audio/volume', 'POST', { volume: _sliderToAlsa(sliderVal) }).catch(() => {});
     }, 150);
   });
 }
