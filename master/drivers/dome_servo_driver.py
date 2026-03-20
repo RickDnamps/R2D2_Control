@@ -30,13 +30,13 @@ PRE_SCALE_REG    = 0xFE
 PRE_SCALE_50HZ   = 121
 
 PULSE_STOP_US    = 1700   # point d'arrêt réel de ces SG90 (calibré sur bench)
-# Vitesses symétriques autour du point d'arrêt :
-#   PULSE_OPEN_US  - PULSE_STOP_US = 2000 - 1700 = 300µs
-#   PULSE_STOP_US  - PULSE_CLOSED_US = 1700 - 1400 = 300µs
-# → même vitesse dans les deux sens → même angle pour la même durée
-# ⚠️  Ne PAS utiliser 1000µs pour CLOSED (1700-1000=700µs → 2.3× plus vite → dérive)
-PULSE_OPEN_US    = 2000   # sens ouverture  (+300µs depuis stop)
-PULSE_CLOSED_US  = 1400   # sens fermeture  (-300µs depuis stop, symétrique)
+# Vitesses asymétriques (inévitable avec SG90 CR dont le stop ≠ 1500µs) :
+#   Open  : 2000µs → 300µs au-dessus du stop → vitesse lente
+#   Close : 1000µs → 700µs en-dessous du stop → ~2.3× plus rapide
+# → compenser via les angles open/close indépendants dans Settings → SERVO CALIBRATION
+#   ex: open_angle=70, close_angle=30 pour un déplacement équivalent
+PULSE_OPEN_US    = 2000   # sens ouverture
+PULSE_CLOSED_US  = 1000   # sens fermeture (plus rapide — compenser par close_angle)
 
 SERVO_MAP: dict[str, int] = {
     'dome_panel_1':   0,
