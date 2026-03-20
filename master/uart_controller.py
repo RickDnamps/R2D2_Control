@@ -1,8 +1,8 @@
 """
 Master UART Controller.
-- Envoie heartbeat H:1:CRC toutes les 200ms
+- Envoie heartbeat H:1:CS toutes les 200ms (CS = checksum somme mod 256)
 - Lit les réponses du Slave et dispatche via callbacks
-- Alerte si 3 CRC invalides consécutifs sur heartbeat
+- Alerte si 3 checksums invalides consécutifs sur heartbeat
 """
 
 import logging
@@ -124,16 +124,16 @@ class UARTController:
         result = parse_msg(line)
         if result is None:
             self._invalid_crc_count += 1
-            # Heartbeat CRC invalide = bus bruité
+            # Heartbeat checksum invalide = bus bruité (parasites moteurs / Tobsun)
             if line.startswith('H:'):
                 self._heartbeat_invalid_crc_count += 1
                 if self._heartbeat_invalid_crc_count >= MAX_INVALID_CRC_BEFORE_ALERT:
                     log.warning(
                         f"Bus UART bruité: {self._heartbeat_invalid_crc_count} "
-                        "heartbeats CRC invalides consécutifs"
+                        "heartbeats checksum invalides consécutifs"
                     )
             if self._invalid_crc_count >= MAX_INVALID_CRC_BEFORE_ALERT:
-                log.warning(f"Alerte: {self._invalid_crc_count} messages CRC invalides consécutifs")
+                log.warning(f"Alerte: {self._invalid_crc_count} messages checksum invalides consécutifs")
             return
 
         self._invalid_crc_count = 0

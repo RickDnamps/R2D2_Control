@@ -219,7 +219,7 @@ Autonomie : **~1h30** — largement suffisant pour l'usage prévu.
 ### Format des messages
 ```
 TYPE:VALEUR\n          # message simple
-TYPE:VALEUR:CRC\n      # message avec checksum (XOR des bytes)
+TYPE:VALEUR:CS\n       # message avec checksum (somme des bytes mod 256, 2 hex chars)
 ```
 
 ### Types de messages définis
@@ -464,7 +464,7 @@ r2d2/
 ├── HOWTO.md                     ← Guide installation phases 1-4
 ├── VERSION                      ← git hash courant
 ├── shared/
-│   ├── uart_protocol.py         ← CRC XOR, build_msg, parse_msg
+│   ├── uart_protocol.py         ← Checksum somme mod 256, build_msg, parse_msg
 │   └── base_driver.py           ← interface BaseDriver
 ├── master/
 │   ├── main.py                  ← boot + blocs Phase 2/3/4 commentés
@@ -559,28 +559,29 @@ WATCHDOG_TIMEOUT_MS   = 500
 BAUD_RATE = 115200
 ```
 
-### Protocole CRC — Checksum XOR obligatoire sur tous les messages
+### Protocole Checksum — Somme mod 256 obligatoire sur tous les messages
 
-Le bus UART traverse un slipring — risque de bit flip. Chaque message
-doit inclure un CRC (XOR de tous les bytes du payload avant le CRC).
+Le bus UART traverse un slipring + environnement 24V (moteurs hub, convertisseurs
+Tobsun) — risque élevé de parasites électriques. Chaque message inclut un checksum.
+
+**Algorithme : somme arithmétique de tous les bytes du payload, modulo 256**
+- Meilleur que XOR : deux octets identiques s'annulent avec XOR, pas avec la somme
+- Détecte : bit flips, octets dupliqués, insertions de zéros, rafales de bruit périodique
 
 **Format :**
 ```
-TYPE:VALEUR:CRC\n
+TYPE:VALEUR:CS\n   (CS = 2 hex chars, ex: "B3")
 ```
 
-**Calcul du CRC (XOR de tous les bytes du payload) :**
+**Calcul du checksum :**
 ```python
 def calc_crc(payload: str) -> str:
     """
     payload = tout ce qui est avant le dernier ':'
-    ex: pour "M:50:CRC"  → payload = "M:50"
-    ex: pour "H:1:CRC"   → payload = "H:1"
+    ex: pour "H:1:B3"   → payload = "H:1"
+    ex: pour "M:50:EC"  → payload = "M:50"
     """
-    crc = 0
-    for byte in payload.encode("utf-8"):
-        crc ^= byte
-    return format(crc, '02X')  # retourne hex sur 2 chars ex: "3F"
+    return format(sum(payload.encode('utf-8')) % 256, '02X')
 
 def build_msg(type: str, value: str) -> str:
     payload = f"{type}:{value}"
@@ -588,40 +589,39 @@ def build_msg(type: str, value: str) -> str:
 
 def parse_msg(raw: str) -> tuple[str, str] | None:
     """
-    Retourne (type, value) si CRC valide, None si invalide.
+    Retourne (type, value) si checksum valide, None si invalide.
     Rejette silencieusement les messages corrompus.
     """
     raw = raw.strip()
     parts = raw.split(":")
     if len(parts) < 3:
         return None                          # format invalide
-    *payload_parts, received_crc = parts
+    *payload_parts, received_cs = parts
     payload = ":".join(payload_parts)
-    expected_crc = calc_crc(payload)
-    if received_crc != expected_crc:
-        logging.warning(f"CRC mismatch: got {received_crc}, expected {expected_crc} for '{payload}'")
+    expected_cs = calc_crc(payload)
+    if received_cs != expected_cs:
+        logging.warning(f"Checksum mismatch: got {received_cs}, expected {expected_cs} for '{payload}'")
         return None                          # message corrompu, ignoré
     msg_type = payload_parts[0]
     msg_value = ":".join(payload_parts[1:])
     return (msg_type, msg_value)
 
-# Exemples de messages valides générés
-build_msg("M", "50")          # → "M:50:72\n"
-build_msg("H", "1")           # → "H:1:43\n"
-build_msg("S", "01")          # → "S:01:6C\n"
-build_msg("V", "abc123")      # → "V:abc123:XX\n"
+# Exemples de messages valides générés (somme mod 256)
+build_msg("H", "1")           # → "H:1:B3\n"     (72+58+49=179=0xB3)
+build_msg("M", "50")          # → "M:50:EC\n"    (77+58+53+48=236=0xEC)
+build_msg("S", "01")          # → "S:01:EE\n"    (83+58+48+49=238=0xEE)
 
 # Messages multi-valeurs (ex: drive différentiel)
-build_msg("M", "LEFT:50:RIGHT:30")  # → "M:LEFT:50:RIGHT:30:XX\n"
+build_msg("M", "LEFT:50:RIGHT:30")  # → "M:LEFT:50:RIGHT:30:A6\n"
 # Note: parse_msg gère les valeurs composées correctement
-# car seul le DERNIER segment est le CRC
+# car seul le DERNIER segment est le checksum
 ```
 
 **Règles :**
-- Messages sans CRC = rejetés (sauf pendant la phase de boot initiale)
-- CRC en hexadécimal majuscule sur 2 caractères (`00` à `FF`)
+- Messages sans checksum = rejetés (sauf pendant la phase de boot initiale)
+- Checksum en hexadécimal majuscule sur 2 caractères (`00` à `FF`)
 - En cas de 3 messages invalides consécutifs → logger une alerte
-- Le Watchdog heartbeat `H:1:CRC\n` doit toujours passer — si 3 CRC
+- Le Watchdog heartbeat `H:1:B3\n` doit toujours passer — si 3 checksums
   invalides consécutifs sur heartbeat → considérer le bus comme bruité
   et loguer un warning (mais NE PAS couper les VESC pour un bus bruité,
   seulement pour un heartbeat absent)

@@ -115,7 +115,7 @@ class UARTListener:
         if result is None:
             self._invalid_crc_count += 1
             if self._invalid_crc_count >= MAX_INVALID_CRC_BEFORE_ALERT:
-                log.warning(f"Alerte: {self._invalid_crc_count} messages CRC invalides consécutifs")
+                log.warning(f"Alerte: {self._invalid_crc_count} messages checksum invalides consécutifs (parasites moteurs ?)")
             return
 
         self._invalid_crc_count = 0
