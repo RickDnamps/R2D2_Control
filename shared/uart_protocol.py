@@ -3,12 +3,18 @@ Protocole UART partagé Master ↔ Slave.
 Checksum = somme arithmétique de tous les bytes du payload, modulo 256.
 Format: TYPE:VALEUR:CS\n  (CS = 2 hex chars, ex: "B3")
 
-Pourquoi somme mod 256 plutôt que XOR ?
-  - XOR : deux octets identiques s'annulent → aveugle à la répétition de bruit périodique
-    ex: moteurs 24V + convertisseurs Tobsun génèrent des rafales d'impulsions identiques
-  - Somme mod 256 : chaque octet s'accumule → détecte les rafales, les bits flippés,
-    les octets dupliqués et les insertions de zéros
-  - Suffisant pour des paquets courts (<64 bytes) sur UART 115200 avec slipring
+Algorithme : (sum(bytes) + len(bytes)) % 256
+
+Pourquoi pas XOR ?
+  - XOR : deux octets identiques s'annulent → aveugle aux rafales périodiques
+    (moteurs 24V + Tobsun génèrent des impulsions répétitives)
+
+Pourquoi sum + len et pas juste sum ?
+  - sum seul : un octet nul (0x00) contribue 0 → inchangé si inséré dans la trame
+    → une condition UART BREAK (slipring) injecte 0x00 → passerait sans len
+  - sum + len : tout octet inséré change la longueur → checksum change
+  - Reste une limite : byte-swap de deux octets avec même somme (ex: 0xEE↔0xFF)
+    → collision. Acceptable pour bruit aléatoire — un CRC polynomial éliminerait ça.
 """
 
 import logging
@@ -22,11 +28,13 @@ BAUD_RATE = 115200
 
 def calc_crc(payload: str) -> str:
     """
-    Calcule le checksum (somme des bytes mod 256) du payload.
-    Retourne 2 caractères hex majuscules, ex: 'B3'.
+    Calcule le checksum : (somme des bytes + longueur) mod 256.
+    Retourne 2 caractères hex majuscules, ex: 'B6'.
+    +len() : un octet nul inséré change la longueur → checksum change.
     Appelé 'calc_crc' pour compatibilité avec le reste du code.
     """
-    return format(sum(payload.encode('utf-8')) % 256, '02X')
+    data = payload.encode('utf-8')
+    return format((sum(data) + len(data)) % 256, '02X')
 
 
 def build_msg(msg_type: str, value: str) -> str:
