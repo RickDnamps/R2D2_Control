@@ -1096,6 +1096,95 @@ body::after {
 .vesc-info-box svg { flex-shrink: 0; margin-top: 2px; }
 .vesc-info-box strong { color: var(--cyan); }
 
+/* CAN Bus Wizard */
+.vesc-can-wizard {
+  border-top: 1px solid rgba(0, 180, 255, 0.15);
+  padding-top: 14px;
+}
+.vesc-can-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.vesc-can-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+}
+.vesc-can-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.vesc-can-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.vesc-can-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 0;
+  flex: 1;
+  min-width: 180px;
+  line-height: 1.5;
+}
+.vesc-can-result {
+  display: none;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(0, 180, 255, 0.06);
+  border: 1px solid rgba(0, 180, 255, 0.18);
+  border-radius: 8px;
+  font-size: 11px;
+}
+.vesc-can-result.show { display: block; }
+.can-found-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--cyan);
+  margin-bottom: 8px;
+}
+.can-id-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.can-id-badge {
+  padding: 3px 10px;
+  background: rgba(0, 255, 136, 0.12);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #00ff88;
+  letter-spacing: 0.5px;
+}
+.can-info { margin: 6px 0 0; color: var(--text-dim); line-height: 1.5; }
+.can-warn { margin: 6px 0 0; color: #ffcc00; line-height: 1.5; }
+.can-err  { color: #ff4455; }
+.vesc-can-warning {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 68, 85, 0.08);
+  border: 1px solid rgba(255, 68, 85, 0.25);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.vesc-can-warning svg { flex-shrink: 0; margin-top: 1px; color: #ff4455; }
+.vesc-can-warning strong { color: #ff4455; }
+#can-scan-btn .spin { display: inline-block; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ================================================================
    SEQUENCES TAB
 ================================================================ */

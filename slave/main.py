@@ -29,7 +29,7 @@ from slave.drivers.display_driver import DisplayDriver
 from slave.drivers.audio_driver   import AudioDriver
 
 # ---- Phase 2 — Décommenter pour activer ----
-# from slave.drivers.vesc_driver        import VescDriver
+# from slave.drivers.vesc_driver        import VescDriver   # active M: VCFG: VINV: CANSCAN: callbacks
 from slave.drivers.body_servo_driver  import BodyServoDriver
 # from slave.drivers.dome_motor_driver  import DomeMotorDriver  # à créer Phase 2
 
@@ -124,7 +124,19 @@ def main() -> None:
 
     # ------------------------------------------------------------------
     # Phase 2 — VESC + Moteur dôme (non branchés — marquer désactivé)
+    # Décommenter bloc complet quand les VESC sont branchés en USB:
     # ------------------------------------------------------------------
+    # vesc = VescDriver()
+    # if vesc.setup(uart=uart):
+    #     uart.register_callback('M',       vesc.handle_uart)
+    #     uart.register_callback('VCFG',    vesc.handle_config_uart)
+    #     uart.register_callback('VINV',    vesc.handle_invert_uart)
+    #     uart.register_callback('CANSCAN', vesc.handle_can_scan_uart)
+    #     display.boot_ok('VESC_G')
+    #     display.boot_ok('VESC_D')
+    # else:
+    #     display.boot_fail('VESC_G')
+    #     display.boot_fail('VESC_D')
     display.boot_fail('VESC_G')   # non branché Phase 1
     display.boot_fail('VESC_D')   # non branché Phase 1
     display.boot_fail('DOME')     # non branché Phase 1

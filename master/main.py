@@ -239,6 +239,21 @@ def main() -> None:
         if d:
             reg.vesc_telem['R'] = d
 
+    def on_can_found(value: str) -> None:
+        """Résultat scan CAN bus envoyé par le Slave."""
+        if value.strip() == 'ERR':
+            reg.vesc_can_scan_result = None
+        elif not value.strip():
+            reg.vesc_can_scan_result = []
+        else:
+            try:
+                reg.vesc_can_scan_result = [int(x) for x in value.split(',') if x.strip()]
+            except ValueError:
+                reg.vesc_can_scan_result = []
+                log.warning(f"CANFOUND: format invalide {value!r}")
+        reg.vesc_can_scan_event.set()
+        log.info(f"CAN scan résultat: {reg.vesc_can_scan_result}")
+
     def on_version(value: str) -> None:
         if value == '?':
             try:
@@ -251,10 +266,11 @@ def main() -> None:
         else:
             log.info(f"Version Slave reçue: {value}")
 
-    uart.register_callback('H',  on_heartbeat_ack)
-    uart.register_callback('TL', on_vesc_telem_left)
-    uart.register_callback('TR', on_vesc_telem_right)
-    uart.register_callback('V',  on_version)
+    uart.register_callback('H',        on_heartbeat_ack)
+    uart.register_callback('TL',       on_vesc_telem_left)
+    uart.register_callback('TR',       on_vesc_telem_right)
+    uart.register_callback('V',        on_version)
+    uart.register_callback('CANFOUND', on_can_found)
 
     # Démarrage hardware
     if not uart.setup():

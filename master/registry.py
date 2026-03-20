@@ -4,6 +4,7 @@ Les blueprints accèdent aux drivers via ce module.
 Initialisé dans master/main.py avant le démarrage de Flask.
 """
 
+import threading
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -30,3 +31,8 @@ dome_servo:  'DomeServoDriver | None'   = None
 # Format: {'v_in': 23.5, 'temp': 35.2, 'current': 8.5, 'rpm': 1200, 'duty': 0.45, 'fault': 0, 'ts': 1234567890.0}
 vesc_telem: dict = {'L': None, 'R': None}
 vesc_power_scale: float = 1.0
+
+# Résultat du scan CAN bus — mis à jour par callback CANFOUND dans main.py
+# None = pas encore de résultat, [] = aucun VESC trouvé, [...] = IDs trouvés
+vesc_can_scan_result: list | None = None
+vesc_can_scan_event: threading.Event = threading.Event()

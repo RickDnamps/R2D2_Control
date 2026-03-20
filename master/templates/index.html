@@ -524,12 +524,37 @@
       </div>
     </div>
 
+    <!-- CAN Bus Setup Wizard -->
+    <div class="vesc-config-card vesc-can-wizard">
+      <div class="vesc-can-header">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+          <rect x="1" y="4" width="3" height="6" rx="1"/><rect x="10" y="4" width="3" height="6" rx="1"/>
+          <line x1="4" y1="7" x2="10" y2="7"/><circle cx="7" cy="7" r="1.2" fill="currentColor" stroke="none"/>
+        </svg>
+        <span class="vesc-can-title">CAN BUS SETUP</span>
+        <span class="vesc-can-hint">— scan &amp; verify VESC 2 via CAN forwarding from VESC 1 (USB)</span>
+      </div>
+      <div class="vesc-can-step">
+        <p class="vesc-can-desc">VESC 1 is connected via USB and acts as CAN gateway. Scan to discover VESC 2 on the CAN bus without a second USB cable.</p>
+        <button class="btn btn-sm btn-primary" id="can-scan-btn" onclick="canWizard.scan()">
+          SCAN CAN BUS
+        </button>
+      </div>
+      <div id="can-scan-result" class="vesc-can-result"></div>
+      <div class="vesc-can-warning">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2 L13 12 H1 Z" stroke="currentColor" stroke-width="1.2" fill="none"/><line x1="7" y1="6" x2="7" y2="9" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="10.5" r="0.7" fill="currentColor"/></svg>
+        <span><strong>CRITICAL:</strong> "Multiple ESC over CAN" must be <strong>OFF</strong> on both VESCs.
+        If enabled, both motors receive identical commands — R2-D2 cannot turn!
+        Verify in VESC Tool → App Settings → General → Multiple ESC over CAN = OFF.</span>
+      </div>
+    </div>
+
     <!-- Info box -->
     <div class="vesc-info-box">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/><line x1="7" y1="6" x2="7" y2="10" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="4" r="0.8" fill="currentColor"/></svg>
       VESC telemetry updates at 5Hz when motors are connected via USB.
-      Use <strong>VESC Tool</strong> for full motor configuration (FOC wizard, motor detection).
-      Telemetry auto-polls with the status refresh every 2s.
+      CAN scan requires VESC 1 connected via USB (<code>/dev/ttyACM0</code>).
+      For full motor config (FOC wizard, motor detection) use <strong>VESC Tool</strong>.
     </div>
 
   </div>

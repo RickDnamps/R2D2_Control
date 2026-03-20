@@ -864,6 +864,64 @@ function vescFocDetect(side) {
 }
 
 // ================================================================
+// CAN Bus Wizard
+// ================================================================
+
+const canWizard = {
+  _scanning: false,
+
+  async scan() {
+    if (this._scanning) return;
+    this._scanning = true;
+
+    const btn    = el('can-scan-btn');
+    const result = el('can-scan-result');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> SCANNING…'; }
+    if (result) { result.textContent = ''; result.className = 'vesc-can-result'; }
+
+    const d = await api('/vesc/can/scan');
+    this._scanning = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = 'SCAN CAN BUS'; }
+
+    if (!d || d.error) {
+      const msg = (d && d.error) ? d.error : 'Connection failed';
+      if (result) {
+        result.innerHTML = `<span class="can-err">⚠ ${escapeHtml(msg)}</span>`;
+        result.className = 'vesc-can-result show';
+      }
+      toast('CAN scan failed', 'warn');
+      return;
+    }
+    this._displayResult(d.ids || []);
+  },
+
+  _displayResult(ids) {
+    const result = el('can-scan-result');
+    if (!result) return;
+
+    let html = `<div class="can-found-header">FOUND ${ids.length} VESC${ids.length !== 1 ? 'S' : ''} ON CAN BUS</div>`;
+
+    if (ids.length === 0) {
+      html += `<p class="can-info">No VESCs found on CAN bus.<br>Check CAN H/L wiring between VESCs and ensure VESC 1 is connected via USB (/dev/ttyACM0).</p>`;
+    } else {
+      html += `<div class="can-id-list">`;
+      ids.forEach(id => { html += `<span class="can-id-badge">CAN ID ${id}</span>`; });
+      html += `</div>`;
+      if (ids.length === 1) {
+        html += `<p class="can-info">✓ VESC 2 found (CAN ID ${ids[0]}). VESC 1 (USB) is the gateway.</p>`;
+      } else if (ids.filter(i => i === 0).length > 0 && ids.length > 1) {
+        html += `<p class="can-warn">⚠ Multiple VESCs share CAN ID 0. Assign unique IDs via VESC Tool before operating.</p>`;
+      } else {
+        html += `<p class="can-info">✓ ${ids.length} VESCs found on CAN bus (IDs: ${ids.join(', ')}).</p>`;
+      }
+    }
+    result.innerHTML = html;
+    result.className = 'vesc-can-result show';
+    toast(`CAN scan: ${ids.length} VESC${ids.length !== 1 ? 's' : ''} found`, ids.length > 0 ? 'ok' : 'warn');
+  },
+};
+
+// ================================================================
 // Script Engine
 // ================================================================
 

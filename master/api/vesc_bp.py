@@ -6,6 +6,7 @@ Endpoints:
   GET  /vesc/telemetry         → télémétrie live des deux VESC
   POST /vesc/config            {"scale": 0.8}   → power scale (10-100%)
   POST /vesc/invert            {"side": "L"}    → inverse moteur L ou R
+  GET  /vesc/can/scan          → scan CAN bus via Slave (timeout 8s)
 """
 
 from flask import Blueprint, request, jsonify
@@ -77,3 +78,32 @@ def invert_motor():
     if reg.uart:
         reg.uart.send('VINV', side)
     return jsonify({'status': 'ok', 'side': side})
+
+
+@vesc_bp.get('/can/scan')
+def can_scan():
+    """
+    Lance un scan CAN bus via UART → Slave → VESC 1 USB.
+    Slave répond avec CANFOUND:id1,id2 ou CANFOUND:ERR.
+    Timeout 8s — retourne {'ids': [...], 'count': N}.
+    """
+    if not reg.uart:
+        return jsonify({'error': 'UART non disponible'}), 503
+
+    # Réinitialiser l'état du scan précédent
+    reg.vesc_can_scan_result = None
+    reg.vesc_can_scan_event.clear()
+
+    # Envoyer la commande de scan au Slave
+    reg.uart.send('CANSCAN', 'start')
+
+    # Attendre la réponse (max 8s — scan 11 IDs × ~0.12s + marge)
+    got = reg.vesc_can_scan_event.wait(timeout=8.0)
+    if not got:
+        return jsonify({'error': 'Timeout — Slave non disponible ou VESCs non connectés en USB'}), 504
+
+    result = reg.vesc_can_scan_result
+    if result is None:
+        return jsonify({'error': 'Scan échoué — VescDriver non prêt (Phase 2 non activée ?)'}), 500
+
+    return jsonify({'ids': result, 'count': len(result)})

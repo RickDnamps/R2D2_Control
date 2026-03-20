@@ -4,10 +4,11 @@ Reçoit les commandes M: du Master et pilote les VESC de propulsion via pyvesc.
 Envoie la télémétrie TL:/TR: au Master toutes les 200ms.
 
 Format UART reçu:
-  M:LEFT,RIGHT:CRC    → propulsion différentielle (float [-1.0…+1.0])
-  VCFG:scale:0.8:CRC  → power scale (0.1-1.0) — réduit le duty cycle max
-  VINV:L:CRC          → inverse le sens du moteur gauche (software)
-  VINV:R:CRC          → inverse le sens du moteur droit (software)
+  M:LEFT,RIGHT:CRC      → propulsion différentielle (float [-1.0…+1.0])
+  VCFG:scale:0.8:CRC   → power scale (0.1-1.0) — réduit le duty cycle max
+  VINV:L:CRC            → inverse le sens du moteur gauche (software)
+  VINV:R:CRC            → inverse le sens du moteur droit (software)
+  CANSCAN:start:CRC     → lance un scan CAN bus, répond CANFOUND:id1,id2
 
 Format UART envoyé (Slave → Master):
   TL:v_in:temp:curr:rpm:duty:fault:CRC  → télémétrie VESC gauche
@@ -187,6 +188,34 @@ class VescDriver(BaseDriver):
             log.info(f"Invert droit: {self._invert_right}")
         else:
             log.warning(f"VINV: côté inconnu {value!r}")
+
+    def handle_can_scan_uart(self, value: str) -> None:
+        """
+        CANSCAN:start — scanne le CAN bus via VESC 1 USB et envoie CANFOUND: au Master.
+        Lancé dans un thread pour ne pas bloquer l'UART listener.
+        """
+        if not self._ready or not self._serial_left:
+            log.warning("CAN scan demandé mais VESC gauche non prêt")
+            if self._uart:
+                self._uart.send('CANFOUND', 'ERR')
+            return
+
+        def _do_scan():
+            try:
+                from slave.drivers.vesc_can import scan_can_bus
+                log.info("Démarrage scan CAN bus...")
+                with self._lock:
+                    found = scan_can_bus(self._serial_left)
+                ids_str = ','.join(str(i) for i in found) if found else ''
+                log.info(f"CAN scan terminé: {found}")
+                if self._uart:
+                    self._uart.send('CANFOUND', ids_str)
+            except Exception as e:
+                log.error(f"CAN scan échoué: {e}")
+                if self._uart:
+                    self._uart.send('CANFOUND', 'ERR')
+
+        threading.Thread(target=_do_scan, name='can-scan', daemon=True).start()
 
     # ------------------------------------------------------------------
     # Télémétrie
