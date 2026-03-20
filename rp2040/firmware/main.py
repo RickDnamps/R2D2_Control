@@ -2,19 +2,19 @@
 R2-D2 RP2040 Firmware — MicroPython.
 Waveshare RP2040-LCD-1.28 / RP2040-Touch-LCD-1.28 (GC9A01, CST816S).
 
-Ecran de diagnostic — demarre immediatement en mode BOOT_PROGRESS (orange).
-Les items se mettent a jour au fur et a mesure que le Slave Pi demarre.
-Si le timeout de boot expire sans reponse, les items non repondus passent en ERREUR.
+Ecran de diagnostic — "render what you're told".
+L'etat est pilote entierement par les commandes DISP: recues du Slave Pi.
 
 Commandes DISP: recues depuis le Slave Pi via USB serial:
-  DISP:BOOT:START            → reset items + debut sequence diagnostic
-  DISP:BOOT:ITEM:NOM         → item NOM en cours (CHECKING)
-  DISP:BOOT:OK:NOM           → item NOM OK
-  DISP:BOOT:FAIL:NOM         → item NOM FAIL
-  DISP:READY:version         → tout OK → ecran vert OPERATIONNEL (3s) → PRET
-  DISP:OK:version            → operationnel normal
-  DISP:ERROR:CODE            → erreur avec code (MASTER_OFFLINE, VESC_TEMP_HIGH, etc.)
-  DISP:TELEM:24.5V:38C       → telemetrie batterie + temperature
+  DISP:BOOT:START            -> spinner orange (BOOTING)
+  DISP:READY:version         -> ecran vert OK
+  DISP:OK:version            -> ecran vert OK
+  DISP:NET:sub_state         -> ecran reseau
+  DISP:LOCKED                -> ecran verrouille (animation)
+  DISP:ERROR:CODE            -> erreur avec code
+  DISP:TELEM:24.5V:38C      -> telemetrie batterie + temperature
+  DISP:BUS:pct               -> sante bus UART (0-100)
+  DISP:SYNCING               -> reste sur spinner BOOTING
 """
 
 import sys
@@ -30,10 +30,6 @@ import display as disp
 #           13 = RP2040-Touch-LCD-1.28 (avec touch)
 # ------------------------------------------------------------------
 RST_PIN = 12
-
-# Timeout boot — si le Slave ne repond pas dans ce delai,
-# les items non OK passent automatiquement en ERREUR (rouge)
-BOOT_TIMEOUT_MS = 90_000   # 90 secondes
 
 # ------------------------------------------------------------------
 # Init display — delai obligatoire au boot (RST pas LOW avant init)
@@ -65,52 +61,41 @@ except Exception:
 # ------------------------------------------------------------------
 # Etats
 # ------------------------------------------------------------------
-STATE_BOOT_PROGRESS = "BOOT_PROGRESS"
-STATE_OPERATIONAL   = "OPERATIONAL"
-STATE_OK            = "OK"
-STATE_ERROR         = "ERROR"
-STATE_TELEM         = "TELEM"
+STATE_BOOTING = "BOOTING"
+STATE_OK      = "OK"
+STATE_NET     = "NET"
+STATE_LOCKED  = "LOCKED"
+STATE_ERROR   = "ERROR"
+STATE_TELEM   = "TELEM"
 
-# Cycle de navigation par swipe — disponible seulement apres READY
-SCREENS = [STATE_OK, STATE_TELEM, STATE_BOOT_PROGRESS]
+# Navigation swipe — seulement quand operationnel
+SCREENS   = [STATE_OK, STATE_TELEM]
+NAVIGABLE = {STATE_OK, STATE_TELEM}
 
-# Etats ou la navigation swipe est autorisee (robot operationnel)
-NAVIGABLE = {STATE_OK, STATE_TELEM, STATE_BOOT_PROGRESS}
+# Demarre en mode BOOTING (spinner orange)
+state           = STATE_BOOTING
+version         = ""
+error_code      = ""
+telem_voltage   = 0.0
+telem_temp      = 0.0
+net_sub_state   = ""
+bus_health_pct  = 100.0
+screen_idx      = 0
 
-# Demarre directement sur l'ecran de diagnostic
-state             = STATE_BOOT_PROGRESS
-version           = ""
-error_code        = ""
-telem_voltage     = 0.0
-telem_temp        = 0.0
-screen_idx        = 0
-operational_since = 0   # ticks pour auto-transition OPERATIONAL → OK
-boot_timed_out    = False
-
-# Items de boot et leur statut — tous en attente au demarrage
-# Memes cles que BOOT_LABELS dans display.py
-boot_items = {
-    'UART':    'pending',   # UART slipring → Master
-    'VESC_G':  'pending',   # VESC gauche /dev/ttyACM0
-    'VESC_D':  'pending',   # VESC droite  /dev/ttyACM1
-    'DOME':    'pending',   # Motor Driver HAT I2C 0x40
-    'SERVOS':  'pending',   # PCA9685 body I2C 0x41
-    'AUDIO':   'pending',   # Jack 3.5mm natif
-    'BT_CTRL': 'pending',   # Bluetooth controller (optional)
-}
-
-_needs_redraw  = True              # forcer redraw au demarrage
-_boot_start_ms = time.ticks_ms()   # reference pour le timeout boot
+_needs_redraw  = True
+_last_anim_ms  = 0    # dernier tick animation pour BOOTING/LOCKED
 
 
 def apply_state():
     global _needs_redraw
-    if state == STATE_BOOT_PROGRESS:
-        disp.draw_boot_progress(tft, boot_items)
-    elif state == STATE_OPERATIONAL:
-        disp.draw_operational(tft, version)
+    if state == STATE_BOOTING:
+        disp.draw_booting(tft)
     elif state == STATE_OK:
-        disp.draw_ok(tft, version)
+        disp.draw_ok(tft, version, bus_health_pct)
+    elif state == STATE_NET:
+        disp.draw_net(tft, net_sub_state)
+    elif state == STATE_LOCKED:
+        disp.draw_locked(tft)
     elif state == STATE_ERROR:
         disp.draw_error(tft, error_code)
     elif state == STATE_TELEM:
@@ -118,29 +103,9 @@ def apply_state():
     _needs_redraw = False
 
 
-def _check_boot_timeout():
-    """Apres BOOT_TIMEOUT_MS, marque les items non OK comme ERREUR."""
-    global boot_timed_out, _needs_redraw
-    if boot_timed_out:
-        return
-    if state != STATE_BOOT_PROGRESS:
-        return
-    if time.ticks_diff(time.ticks_ms(), _boot_start_ms) < BOOT_TIMEOUT_MS:
-        return
-    # Timeout atteint — marquer tout ce qui n'est pas OK en erreur
-    changed = False
-    for k in boot_items:
-        if boot_items[k] != 'ok':
-            boot_items[k] = 'fail'
-            changed = True
-    boot_timed_out = True
-    if changed:
-        _needs_redraw = True
-
-
 def parse_command(line):
     global state, version, error_code, telem_voltage, telem_temp
-    global operational_since, _needs_redraw, boot_timed_out
+    global net_sub_state, bus_health_pct, _needs_redraw
 
     line = line.strip()
     if not line.startswith("DISP:"):
@@ -150,43 +115,36 @@ def parse_command(line):
     cmd = parts[0].upper()
 
     if cmd == "BOOT":
-        if parts[1].upper() == "START" if len(parts) > 1 else False:
-            # Reset tous les items + timeout repart
-            for k in boot_items:
-                boot_items[k] = 'pending'
-            boot_timed_out = False
-            state = STATE_BOOT_PROGRESS
-        elif parts[1].upper() in ("ITEM", "PROGRESS") if len(parts) > 1 else False:
-            if len(parts) > 2:
-                key = parts[2].upper()
-                if key in boot_items:
-                    boot_items[key] = 'progress'
-            state = STATE_BOOT_PROGRESS
-        elif parts[1].upper() == "OK" if len(parts) > 1 else False:
-            if len(parts) > 2:
-                key = parts[2].upper()
-                if key in boot_items:
-                    boot_items[key] = 'ok'
-            state = STATE_BOOT_PROGRESS
-        elif parts[1].upper() == "FAIL" if len(parts) > 1 else False:
-            if len(parts) > 2:
-                key = parts[2].upper()
-                if key in boot_items:
-                    boot_items[key] = 'fail'
-            state = STATE_BOOT_PROGRESS
+        # DISP:BOOT:START -> passe en BOOTING (spinner)
+        # DISP:BOOT:ITEM/OK/FAIL sont silencieusement ignores (spinner continue)
+        sub = parts[1].upper() if len(parts) > 1 else ""
+        if sub == "START":
+            state = STATE_BOOTING
 
-    elif cmd == "READY":
-        version = parts[1] if len(parts) > 1 else version
-        state = STATE_OPERATIONAL
-        operational_since = time.ticks_ms()
-
-    elif cmd == "OK":
-        state = STATE_OK
+    elif cmd in ("READY", "OK"):
         version = parts[1] if len(parts) > 1 else ""
+        state = STATE_OK
 
     elif cmd == "SYNCING":
-        # Afficher le diagnostic pendant la synchro version
-        state = STATE_BOOT_PROGRESS
+        state = STATE_BOOTING  # reste sur le spinner pendant la synchro
+
+    elif cmd == "BUS":
+        if len(parts) > 1:
+            try:
+                bus_health_pct = float(parts[1])
+            except ValueError:
+                pass
+        # Ne change PAS l'etat — force redraw seulement si on est en STATE_OK
+        if state == STATE_OK:
+            _needs_redraw = True
+        return  # pas de _needs_redraw global ici
+
+    elif cmd == "NET":
+        net_sub_state = ":".join(parts[1:]) if len(parts) > 1 else ""
+        state = STATE_NET
+
+    elif cmd == "LOCKED":
+        state = STATE_LOCKED
 
     elif cmd == "ERROR":
         error_code = ":".join(parts[1:]).upper() if len(parts) > 1 else "UNKNOWN"
@@ -200,18 +158,6 @@ def parse_command(line):
             pass
         state = STATE_TELEM
 
-    elif cmd == "BT":
-        sub = parts[1].upper() if len(parts) > 1 else ""
-        if sub == "CONNECTED":
-            boot_items['BT_CTRL'] = 'ok'
-        elif sub == "NONE":
-            boot_items['BT_CTRL'] = 'none'
-        elif sub == "FAIL":
-            boot_items['BT_CTRL'] = 'fail'
-        state = STATE_BOOT_PROGRESS
-        _needs_redraw = True
-        return
-
     _needs_redraw = True
 
 
@@ -221,7 +167,7 @@ def parse_command(line):
 def on_swipe_left(x, y):
     global screen_idx, state, _needs_redraw
     if state not in NAVIGABLE:
-        return  # bloque pendant le boot ou en erreur
+        return
     screen_idx = (screen_idx + 1) % len(SCREENS)
     state = SCREENS[screen_idx]
     _needs_redraw = True
@@ -229,17 +175,16 @@ def on_swipe_left(x, y):
 def on_swipe_right(x, y):
     global screen_idx, state, _needs_redraw
     if state not in NAVIGABLE:
-        return  # bloque pendant le boot ou en erreur
+        return
     screen_idx = (screen_idx - 1) % len(SCREENS)
     state = SCREENS[screen_idx]
     _needs_redraw = True
 
 def on_double_tap(x, y):
-    """Double tap — revenir au diagnostic seulement si operationnel."""
-    global state, _needs_redraw
-    if state not in NAVIGABLE:
-        return  # rien faire si boot en cours ou erreur
-    state = STATE_BOOT_PROGRESS
+    """Double tap — retour a STATE_OK depuis n'importe quel etat."""
+    global state, screen_idx, _needs_redraw
+    state = STATE_OK
+    screen_idx = 0
     _needs_redraw = True
 
 def on_hold(x, y):
@@ -260,9 +205,10 @@ _poller.register(sys.stdin, select.POLLIN)
 # ------------------------------------------------------------------
 # Boucle principale
 # ------------------------------------------------------------------
-apply_state()  # afficher ecran diagnostic immediatement
+apply_state()   # afficher etat initial immediatement
 
 buf = ""
+_ANIM_INTERVAL_MS = 200   # intervalle animation pour BOOTING et LOCKED
 
 while True:
     # Lecture commandes DISP: depuis Slave — non-bloquant
@@ -284,16 +230,14 @@ while True:
         except Exception:
             pass
 
-    # Auto-transition OPERATIONAL → OK apres 3 secondes
-    if state == STATE_OPERATIONAL:
-        if time.ticks_diff(time.ticks_ms(), operational_since) >= 3000:
-            state = STATE_OK
+    # Animation periodique pour BOOTING et LOCKED
+    now = time.ticks_ms()
+    if state in (STATE_BOOTING, STATE_LOCKED):
+        if time.ticks_diff(now, _last_anim_ms) >= _ANIM_INTERVAL_MS:
+            _last_anim_ms = now
             _needs_redraw = True
 
-    # Verifier timeout de boot
-    _check_boot_timeout()
-
-    # Redessiner SEULEMENT si quelque chose a change — pas de timer
+    # Redessiner SEULEMENT si quelque chose a change
     if _needs_redraw:
         apply_state()
 
