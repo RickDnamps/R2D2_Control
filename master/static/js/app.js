@@ -1182,8 +1182,8 @@ async function systemUpdate() {
 // ALSA bcm2835 maps 0-100% linearly onto ~-102dB..+4dB,
 // so 50% ALSA ≈ -49dB (nearly inaudible).
 // Square-root curve makes slider 50% → ALSA 71% (≈-28dB, usable).
-function _sliderToAlsa(v) { return Math.round(Math.sqrt(v / 100) * 100); }
-function _alsaToSlider(v) { return Math.round(Math.pow(v / 100, 2) * 100); }
+function _sliderToAlsa(v) { return Math.round(Math.pow(v / 100, 1 / 3) * 100); }
+function _alsaToSlider(v) { return Math.round(Math.pow(v / 100, 3) * 100); }
 
 function initVolume() {
   const slider = document.getElementById('volume-slider');
