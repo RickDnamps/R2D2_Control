@@ -26,6 +26,7 @@ class DisplayDriver(BaseDriver):
         self._baud   = baud
         self._serial: serial.Serial | None = None
         self._ready  = False
+        self._last_cmd: str = ""
 
     def setup(self) -> bool:
         ports = DISPLAY_PORTS if self._port == "auto" else [self._port]
@@ -119,6 +120,38 @@ class DisplayDriver(BaseDriver):
         """Jauge batterie + température."""
         return self._send(f"DISP:TELEM:{voltage:.1f}V:{temp:.0f}C")
 
+    # ------------------------------------------------------------------
+    # WiFi Watchdog états réseau
+    # ------------------------------------------------------------------
+
+    def net_scanning(self, attempt: int) -> bool:
+        """Scan WiFi — tentative de reconnexion au hotspot Master (Level 1)."""
+        return self._send(f"DISP:NET:SCANNING:{attempt}")
+
+    def net_connecting_ap(self, attempt: int) -> bool:
+        """Connexion en cours vers hotspot Master."""
+        return self._send(f"DISP:NET:AP:{attempt}")
+
+    def net_home_try(self) -> bool:
+        """Basculement vers WiFi domestique (Level 2)."""
+        return self._send("DISP:NET:HOME_TRY")
+
+    def net_home_ok(self, ip: str) -> bool:
+        """Connecté au WiFi domestique — affiche l'IP obtenue."""
+        return self._send(f"DISP:NET:HOME:{ip}")
+
+    def net_ok(self) -> bool:
+        """Connexion Master rétablie."""
+        return self._send("DISP:NET:OK")
+
+    def bus_health(self, pct: float) -> bool:
+        """Santé du bus UART — mis à jour toutes les 10s."""
+        return self._send(f"DISP:BUS:{pct:.1f}")
+
+    def system_locked(self) -> bool:
+        """Cadenas rouge — watchdog VESC déclenché."""
+        return self._send("DISP:LOCKED")
+
     def send_raw(self, cmd: str) -> bool:
         """Commande brute (ex: DISP: transférée depuis UART Master)."""
         return self._send(cmd)
@@ -134,6 +167,7 @@ class DisplayDriver(BaseDriver):
         try:
             self._serial.write(f"{cmd}\n".encode('utf-8'))
             log.debug(f"Display TX: {cmd}")
+            self._last_cmd = cmd
             return True
         except serial.SerialException as e:
             log.error(f"Erreur display send: {e}")
