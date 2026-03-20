@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from slave.uart_listener import UARTListener
 from slave.uart_health_server import start_health_server
+from slave.wifi_watchdog import WiFiWatchdog
 from slave.watchdog import WatchdogController
 from slave.version_check import VersionChecker
 from slave.drivers.display_driver import DisplayDriver
@@ -85,6 +86,12 @@ def main() -> None:
         log.warning("DisplayDriver indisponible — mode dégradé affichage")
 
     display.boot_start()   # RP2040 : reset tous les items → orange
+
+    # Redéfinir emergency_stop avec closure sur display (pour display.system_locked())
+    def emergency_stop_vesc() -> None:
+        log.error("COUPURE VESC — watchdog timeout")
+        display.system_locked()
+        # Phase 2: vesc_g.stop() + vesc_d.stop()
 
     # ------------------------------------------------------------------
     # UART Listener — connexion au Master via slipring
@@ -166,6 +173,27 @@ def main() -> None:
     uart.start()
 
     # ------------------------------------------------------------------
+    # WiFi Watchdog — reconnexion automatique wlan0
+    # ------------------------------------------------------------------
+    wifi_watchdog = WiFiWatchdog(display)
+    wifi_watchdog.start()
+
+    # ------------------------------------------------------------------
+    # Bus Health push — envoie le % santé UART au RP2040 toutes les 10s
+    # ------------------------------------------------------------------
+    def _bus_health_push():
+        while True:
+            time.sleep(10)
+            stats = uart.get_health_stats()
+            display.bus_health(stats['health_pct'])
+
+    threading.Thread(
+        target=_bus_health_push,
+        name='bus-health-push',
+        daemon=True,
+    ).start()
+
+    # ------------------------------------------------------------------
     # Vérification version avec Master (affiche syncing sur RP2040)
     # ------------------------------------------------------------------
     checker = VersionChecker(uart, display)
@@ -182,6 +210,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     def shutdown(sig, frame):
         log.info("Signal arrêt reçu")
+        wifi_watchdog.stop()
         watchdog.stop()
         uart.stop()
         audio.shutdown()
