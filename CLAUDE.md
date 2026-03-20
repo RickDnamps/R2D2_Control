@@ -159,9 +159,31 @@ Autonomie : **~1h30** — largement suffisant pour l'usage prévu.
 |-----------|--------|-------------|------|
 | Fusible + holder | **80A** | Fil + batterie, le plus court possible | Protection court-circuit principal |
 | Interrupteur principal | **30A+** | Après fusible 80A | Tout couper d'un coup |
-| XT90-S | — | Connecteur batterie (intégré) | Anti-spark condensateurs VESC — pas de connecteur séparé requis |
+| XT90-S | — | Connecteur batterie (intégré) | Anti-spark condensateurs VESC |
 | Fusible + holder | **15A** | Branche électronique (bucks) | Protection Pi/servos |
 | Interrupteur secondaire | **10A** | Branche électronique | Allumer électronique séparément |
+
+### Bucks DC-DC — modèles retenus
+
+| Buck | Modèle | I/O | Ampérage | Emplacement | Alimente |
+|------|--------|-----|----------|-------------|---------|
+| Corps 5V | Tobsun EA50-5V | 10-30V → 5V | 10A | Corps | Pi Slave (GPIO) + Body Servo HAT + RP2040 |
+| Corps 12V | Tobsun EA120-12V | 18-32V → 12V | 10A | Corps | Motor Driver HAT (moteur dôme) + Ampli audio |
+| Dôme 5V | Tobsun EA50-5V | 10-30V → 5V | 10A | Dôme | Pi Master (GPIO) + Dome Servo HAT + Teeces32 LEDs |
+
+> ✅ 6S LiPo 22-25V dans la plage des deux modèles (EA50: 10-30V / EA120: 18-32V)
+
+### Liste d'achat — composants en attente
+
+| Composant | Qté | Spec | Usage |
+|-----------|-----|------|-------|
+| MG90S servo 180° | 10 | 4.8-6V, engrenages métal | Remplacement SG90 360° dôme + body |
+| Condensateur électrolytique | 2 | **1000µF 10V** (ou 16V) | Filtrage rail 5V — entrée V+ Servo HAT dôme + body |
+| Condensateur céramique | 2 | **100nF** | Filtrage HF en parallèle avec les 1000µF |
+
+> ✅ Condensateurs sur entrée V+ Servo HAT uniquement (même rail que Pi) — Motor HAT sur 12V séparé, pas nécessaire
+> ✅ 1000µF électrolytique : absorbe les pics de courant servo au démarrage/inversion
+> ✅ 100nF céramique en parallèle : filtre les hautes fréquences générées par les PWM
 
 ### ⚠️ Procédure de mise sous tension (ordre obligatoire)
 ```
