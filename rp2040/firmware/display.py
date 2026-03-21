@@ -100,10 +100,9 @@ _ok_prev_bus_color = None   # suivi couleur pour draw_ok() incremental
 
 def reset_animations():
     """Appeler quand on quitte un etat anime pour forcer un full redraw au retour."""
-    global _booting_bg_drawn, _locked_bg_drawn, _ok_prev_bus_color
-    _booting_bg_drawn  = False
-    _locked_bg_drawn   = False
-    _ok_prev_bus_color = None
+    global _booting_bg_drawn, _locked_bg_drawn
+    _booting_bg_drawn = False
+    _locked_bg_drawn  = False
 
 
 # ------------------------------------------------------------------
