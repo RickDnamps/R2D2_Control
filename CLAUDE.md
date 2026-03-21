@@ -394,6 +394,7 @@ git rev-parse --short HEAD > /home/artoo/r2d2/VERSION
 - Reçoit commandes via USB serial depuis R2-Slave
 - Autonome — ne nécessite pas de mise à jour fréquente
 - ⚠️ **TODO** : écran mode READY jugé trop basique — améliorer UI (layout, couleurs, animations) dans `rp2040/firmware/`
+- ⚠️ **TODO** : affichage RP2040 flicker + animations très lentes — revoir la boucle principale MicroPython dans `rp2040/firmware/main.py` et les renderers dans `display.py` (optimiser redraw, réduire calculs trigonométriques en boucle, double buffering si GC9A01 le supporte)
 
 ---
 
@@ -1061,6 +1062,11 @@ motion,LEFT,RIGHT,DUR    → drive différentiel (float, float, ms)
 
 > ⚠️ Bug critique résolu : `servoPanel.render()` dans `init()` → `servoPanel` n'existe pas (c'est `domeServoPanel`/`bodyServoPanel`)
 > → tuait tout `init()` silencieusement (horloge, poller, pills jamais démarrés)
+
+### Backlog — Fonctionnalités conçues, prêtes à implémenter
+
+- **DiagnosticMonitor (Master)** : design approuvé, spec non encore écrite. Daemon thread qui centralise les flags d'erreur (UART health, WiFi Slave, Slave offline) et bascule le Teeces entre mode Show (animations Star Wars) et mode Diagnostic (texte défilant FLD). 4 fichiers : `master/diagnostic_monitor.py` (NEW), `master/uart_controller.py`, `slave/wifi_watchdog.py`, `master/main.py`. Nouveau message UART `NET:SCANNING/HOME/OK` Slave→Master.
+- **Servo Calibration UI** : sliders ANGLE_FERMÉ (10-50°) / ANGLE_OUVERT (80-170°) + bouton TEST + RESET DEFAULTS — conçu pour MG90S 180°. Persistance `servo_config.json`. API Flask + Android sync.
 
 ### Phase 5 — Vision (futur)
 - [ ] **5.1** Caméra USB + flux vidéo MJPEG
