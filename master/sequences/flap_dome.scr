@@ -1,0 +1,23 @@
+# Flap Dome — Chaque panneau s'ouvre et se ferme un par un
+# Adapté de flap_dome.scr (dpoulson/r2_control)
+servo,dome_panel_9,open
+sleep,0.1
+servo,dome_panel_9,close
+servo,dome_panel_10,open
+sleep,0.1
+servo,dome_panel_10,close
+servo,dome_panel_11,open
+sleep,0.1
+servo,dome_panel_11,close
+servo,dome_panel_6,open
+sleep,0.1
+servo,dome_panel_6,close
+servo,dome_panel_7,open
+sleep,0.1
+servo,dome_panel_7,close
+servo,dome_panel_8,open
+sleep,0.1
+servo,dome_panel_8,close
+servo,dome_panel_5,open
+sleep,0.1
+servo,dome_panel_5,close

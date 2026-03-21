@@ -80,10 +80,13 @@ class DomeServoDriver(BaseDriver):
         self._lock        = threading.Lock()
         self._error_count = 0
         self._angles      = {}
+        self._pos         = {}   # dernier angle commandé par servo
+
+    def _get_angle(self, name: str, key: str, default: float) -> float:
+        return float(self._angles.get(name, {}).get(key, default))
 
     def _get_close_angle(self, name: str) -> float:
-        panel = self._angles.get(name, {})
-        return float(panel.get('close', DEFAULT_CLOSE_DEG))
+        return self._get_angle(name, 'close', DEFAULT_CLOSE_DEG)
 
     def setup(self) -> bool:
         try:
@@ -122,19 +125,37 @@ class DomeServoDriver(BaseDriver):
     # API publique
     # ------------------------------------------------------------------
 
-    def open(self, name: str, angle_deg: float = DEFAULT_OPEN_DEG) -> bool:
-        return self._move(name, angle_deg)
+    def open(self, name: str, angle_deg: float = None, speed: int = None) -> bool:
+        if angle_deg is None:
+            angle_deg = self._get_angle(name, 'open', DEFAULT_OPEN_DEG)
+        if speed is None:
+            speed = int(self._get_angle(name, 'speed', 10))
+        return self._move_ramp(name, angle_deg, speed)
 
-    def close(self, name: str, angle_deg: float = DEFAULT_CLOSE_DEG) -> bool:
-        return self._move(name, angle_deg)
+    def close(self, name: str, angle_deg: float = None, speed: int = None) -> bool:
+        if angle_deg is None:
+            angle_deg = self._get_close_angle(name)
+        if speed is None:
+            speed = int(self._get_angle(name, 'speed', 10))
+        return self._move_ramp(name, angle_deg, speed)
 
-    def open_all(self, angle_deg: float = DEFAULT_OPEN_DEG) -> None:
+    def open_all(self) -> None:
+        threads = []
         for name in SERVO_MAP:
-            self.open(name, angle_deg)
+            angle = self._get_angle(name, 'open', DEFAULT_OPEN_DEG)
+            speed = int(self._get_angle(name, 'speed', 10))
+            t = threading.Thread(target=self._move_ramp, args=(name, angle, speed), daemon=True)
+            threads.append(t); t.start()
+        for t in threads: t.join()
 
-    def close_all(self, angle_deg: float = DEFAULT_CLOSE_DEG) -> None:
+    def close_all(self) -> None:
+        threads = []
         for name in SERVO_MAP:
-            self.close(name, angle_deg)
+            angle = self._get_close_angle(name)
+            speed = int(self._get_angle(name, 'speed', 10))
+            t = threading.Thread(target=self._move_ramp, args=(name, angle, speed), daemon=True)
+            threads.append(t); t.start()
+        for t in threads: t.join()
 
     def move(self, name: str, position: float,
              angle_open: float = DEFAULT_OPEN_DEG,
@@ -165,7 +186,9 @@ class DomeServoDriver(BaseDriver):
         for ch in range(16):
             self._full_off(ch)
         for name, ch in SERVO_MAP.items():
-            self._set_pulse(ch, _angle_to_pulse(self._get_close_angle(name)))
+            close_a = self._get_close_angle(name)
+            self._set_pulse(ch, _angle_to_pulse(close_a))
+            self._pos[name] = close_a
         log.info("PCA9685 @ 0x%02X initialisé 50Hz + RESTART", self._address)
 
     def _ensure_awake(self) -> None:
@@ -233,5 +256,29 @@ class DomeServoDriver(BaseDriver):
         pulse_us = _angle_to_pulse(angle_deg)
         self._ensure_awake()
         self._set_pulse(channel, pulse_us)
+        self._pos[name] = angle_deg
         log.info("Dome servo %r ch%d → %.1f° (%.0fµs)", name, channel, angle_deg, pulse_us)
+        return True
+
+    def _move_ramp(self, name: str, target: float, speed: int = 10) -> bool:
+        """Déplace le servo avec rampe optionnelle (speed 1=lent … 10=instant)."""
+        speed = max(1, min(10, int(speed)))
+        if speed >= 10:
+            return self._move(name, target)
+        current   = self._pos.get(name, self._get_close_angle(name))
+        step      = 2.0
+        delay     = (10 - speed) * 0.003   # 3ms par unité de speed, par step
+        direction = 1.0 if target > current else -1.0
+        angle     = current
+        while True:
+            angle += direction * step
+            if direction > 0 and angle >= target:
+                angle = target
+            elif direction < 0 and angle <= target:
+                angle = target
+            self._move(name, angle)
+            if delay > 0:
+                time.sleep(delay)
+            if angle == target:
+                break
         return True

@@ -56,8 +56,11 @@ _ALL_PANELS = DOME_SERVOS + BODY_SERVOS
 
 _DEFAULT_OPEN  = 110
 _DEFAULT_CLOSE =  20
+_DEFAULT_SPEED =  10
 _ANGLE_MIN     =  10
 _ANGLE_MAX     = 170
+_SPEED_MIN     =   1
+_SPEED_MAX     =  10
 
 
 # ================================================================
@@ -66,6 +69,9 @@ _ANGLE_MAX     = 170
 
 def _clamp(val: int) -> int:
     return max(_ANGLE_MIN, min(_ANGLE_MAX, val))
+
+def _clamp_speed(val: int) -> int:
+    return max(_SPEED_MIN, min(_SPEED_MAX, val))
 
 
 def _read_panels_cfg() -> dict:
@@ -78,7 +84,8 @@ def _read_panels_cfg() -> dict:
     for name in _ALL_PANELS:
         open_a  = _clamp(cfg.getint('servo_panels', f'{name}_open',  fallback=_DEFAULT_OPEN))
         close_a = _clamp(cfg.getint('servo_panels', f'{name}_close', fallback=_DEFAULT_CLOSE))
-        panels[name] = {'open': open_a, 'close': close_a}
+        speed   = _clamp_speed(cfg.getint('servo_panels', f'{name}_speed', fallback=_DEFAULT_SPEED))
+        panels[name] = {'open': open_a, 'close': close_a, 'speed': speed}
     return {'panels': panels}
 
 
@@ -95,6 +102,8 @@ def _write_panels_cfg(panels: dict) -> None:
             cfg.set('servo_panels', f'{name}_open',  str(_clamp(int(vals['open']))))
         if 'close' in vals:
             cfg.set('servo_panels', f'{name}_close', str(_clamp(int(vals['close']))))
+        if 'speed' in vals:
+            cfg.set('servo_panels', f'{name}_speed', str(_clamp_speed(int(vals['speed']))))
     with open(_LOCAL_CFG, 'w', encoding='utf-8') as f:
         cfg.write(f)
     # Sync vers fichiers JSON dédiés
@@ -117,6 +126,7 @@ def _update_angles_file(filepath: str, panels: dict, names: list) -> None:
         existing[name] = {
             'open':  _clamp(int(vals.get('open',  existing.get(name, {}).get('open',  110)))),
             'close': _clamp(int(vals.get('close', existing.get(name, {}).get('close',  20)))),
+            'speed': _clamp_speed(int(vals.get('speed', existing.get(name, {}).get('speed', 10)))),
         }
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, 'w') as f:
@@ -145,6 +155,9 @@ def _panel_angle(name: str, direction: str, panels_cfg: dict) -> int:
     panel = panels_cfg['panels'].get(name, {})
     return panel.get('open' if direction == 'open' else 'close',
                      _DEFAULT_OPEN if direction == 'open' else _DEFAULT_CLOSE)
+
+def _panel_speed(name: str, panels_cfg: dict) -> int:
+    return panels_cfg['panels'].get(name, {}).get('speed', _DEFAULT_SPEED)
 
 
 # ================================================================
@@ -187,8 +200,9 @@ def body_open():
         return jsonify({'error': 'Champ "name" requis'}), 400
     cfg   = _read_panels_cfg()
     angle = _panel_angle(name, 'open', cfg)
+    speed = _panel_speed(name, cfg)
     if reg.servo:
-        reg.servo.open(name, angle)
+        reg.servo.open(name, angle, speed)
     elif reg.uart:
         reg.uart.send('SRV', f'{name},{angle}')
     return jsonify({'status': 'ok', 'name': name, 'angle': angle})
@@ -202,8 +216,9 @@ def body_close():
         return jsonify({'error': 'Champ "name" requis'}), 400
     cfg   = _read_panels_cfg()
     angle = _panel_angle(name, 'close', cfg)
+    speed = _panel_speed(name, cfg)
     if reg.servo:
-        reg.servo.close(name, angle)
+        reg.servo.close(name, angle, speed)
     elif reg.uart:
         reg.uart.send('SRV', f'{name},{angle}')
     return jsonify({'status': 'ok', 'name': name, 'angle': angle})
@@ -273,7 +288,8 @@ def dome_open():
         return jsonify({'error': 'dome_servo driver non prêt — voir logs master'}), 503
     cfg   = _read_panels_cfg()
     angle = _panel_angle(name, 'open', cfg)
-    reg.dome_servo.open(name, angle)
+    speed = _panel_speed(name, cfg)
+    reg.dome_servo.open(name, angle, speed)
     return jsonify({'status': 'ok', 'name': name, 'angle': angle})
 
 
@@ -287,7 +303,8 @@ def dome_close():
         return jsonify({'error': 'dome_servo driver non prêt — voir logs master'}), 503
     cfg   = _read_panels_cfg()
     angle = _panel_angle(name, 'close', cfg)
-    reg.dome_servo.close(name, angle)
+    speed = _panel_speed(name, cfg)
+    reg.dome_servo.close(name, angle, speed)
     return jsonify({'status': 'ok', 'name': name, 'angle': angle})
 
 
@@ -375,6 +392,7 @@ def servo_settings_save():
             panels[name] = {
                 'open':  _clamp(int(vals.get('open',  _DEFAULT_OPEN))),
                 'close': _clamp(int(vals.get('close', _DEFAULT_CLOSE))),
+                'speed': _clamp_speed(int(vals.get('speed', _DEFAULT_SPEED))),
             }
     _write_panels_cfg(panels)
     return jsonify(_read_panels_cfg())

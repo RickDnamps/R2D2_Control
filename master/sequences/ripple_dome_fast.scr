@@ -1,0 +1,34 @@
+# Ripple Dome Fast — Vague rapide d'ouverture puis fermeture des panneaux
+# Adapté de ripple_dome_fast.scr (dpoulson/r2_control)
+servo,dome_panel_1,open
+sleep,0.05
+servo,dome_panel_2,open
+sleep,0.05
+servo,dome_panel_3,open
+sleep,0.05
+servo,dome_panel_4,open
+sleep,0.05
+servo,dome_panel_6,open
+sleep,0.05
+servo,dome_panel_7,open
+sleep,0.05
+servo,dome_panel_8,open
+sleep,0.05
+servo,dome_panel_5,open
+sleep,0.05
+servo,dome_panel_1,close
+sleep,0.05
+servo,dome_panel_2,close
+sleep,0.05
+servo,dome_panel_3,close
+sleep,0.05
+servo,dome_panel_4,close
+sleep,0.05
+servo,dome_panel_6,close
+sleep,0.05
+servo,dome_panel_7,close
+sleep,0.05
+servo,dome_panel_8,close
+sleep,0.05
+servo,dome_panel_5,close
+sleep,0.05

@@ -36,7 +36,7 @@ import time
 
 log = logging.getLogger(__name__)
 
-SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), 'scripts')
+SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), 'sequences')
 
 
 class ScriptEngine:
@@ -199,19 +199,23 @@ class ScriptEngine:
         action = row[2].lower() if len(row) > 2 else 'open'
 
         if action in ('open', 'close'):
-            # servo,dome_panel_1,open  — uses per-panel configured angles
+            # servo,dome_panel_1,open          → angle calibré
+            # servo,dome_panel_1,open,150      → angle override
+            # servo,dome_panel_1,open,150,8    → angle + speed override
+            angle = float(row[3]) if len(row) > 3 else None
+            speed = int(row[4])   if len(row) > 4 else None
             if name.startswith('dome_panel_'):
                 if self._dome_servo:
                     if action == 'open':
-                        self._dome_servo.open(name)
+                        self._dome_servo.open(name, angle, speed)
                     else:
-                        self._dome_servo.close(name)
+                        self._dome_servo.close(name, angle, speed)
             else:
                 if self._servo:
                     if action == 'open':
-                        self._servo.open(name)
+                        self._servo.open(name, angle, speed)
                     else:
-                        self._servo.close(name)
+                        self._servo.close(name, angle, speed)
             return
 
         position = float(action)

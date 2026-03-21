@@ -1,0 +1,16 @@
+# Flap Dome Fast — Chaque panneau open/close instantané sans pause
+# Source: flap_dome_fast.scr (dpoulson/r2_control)
+servo,dome_panel_9,open
+servo,dome_panel_9,close
+servo,dome_panel_10,open
+servo,dome_panel_10,close
+servo,dome_panel_11,open
+servo,dome_panel_11,close
+servo,dome_panel_6,open
+servo,dome_panel_6,close
+servo,dome_panel_7,open
+servo,dome_panel_7,close
+servo,dome_panel_8,open
+servo,dome_panel_8,close
+servo,dome_panel_5,open
+servo,dome_panel_5,close

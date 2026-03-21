@@ -1,0 +1,44 @@
+# Scared — R2-D2 effrayé : frémissement (petites ouvertures), tremble, teeces off
+sound,RANDOM,sad
+teeces,off
+# Frémissement nerveux — panneaux s'entrouvrent à peine (35°), vitesse rapide
+servo,dome_panel_1,open,35,8
+servo,dome_panel_2,open,35,8
+sleep,0.08
+servo,dome_panel_1,close,20,8
+servo,dome_panel_2,close,20,8
+sleep,0.06
+servo,dome_panel_1,open,28,9
+servo,dome_panel_3,open,28,9
+sleep,0.07
+servo,dome_panel_1,close,20,9
+servo,dome_panel_3,close,20,9
+sleep,0.12
+# Légère ouverture — R2-D2 regarde
+servo,dome_panel_1,open,45,5
+sleep,0.35
+servo,dome_panel_1,close,20,5
+sleep,0.5
+# Tremblement court x3
+servo,dome_panel_2,open,30,9
+sleep,0.05
+servo,dome_panel_2,close,20,9
+sleep,0.05
+servo,dome_panel_2,open,30,9
+sleep,0.05
+servo,dome_panel_2,close,20,9
+sleep,0.05
+servo,dome_panel_2,open,30,9
+sleep,0.05
+servo,dome_panel_2,close,20,9
+sleep,1.2
+sound,RANDOM,sad
+sleep,0.8
+# Petit sursaut
+servo,dome_panel_1,open,40,8
+servo,dome_panel_4,open,40,8
+sleep,0.1
+servo,dome_panel_1,close,20,8
+servo,dome_panel_4,close,20,8
+sleep,2.0
+teeces,random

@@ -461,7 +461,7 @@ class ServoPanel {
     const varName = this._getVar();
     grid.innerHTML = this._servos.map(name => {
       const num      = name.split('_').pop();
-      const panel    = (_servoCfg.panels || {})[name] || { open: 70, close: 70 };
+      const panel    = (_servoCfg.panels || {})[name] || { open: 110, close: 20, speed: 10 };
       return `
         <div class="servo-row" id="servo-row-${name}">
           <span class="servo-name">P${num}</span>
@@ -470,6 +470,8 @@ class ServoPanel {
               class="servo-angle-in" min="10" max="170" value="${panel.open}"></label>
             <label class="servo-calib-label">C<input type="number" id="sc-close-${name}"
               class="servo-angle-in" min="10" max="170" value="${panel.close}"></label>
+            <label class="servo-calib-label">V<input type="number" id="sc-speed-${name}"
+              class="servo-angle-in" min="1" max="10" value="${panel.speed ?? 10}"></label>
           </div>
           <button class="btn btn-sm" onclick="${varName}.open('${name}')">OPEN</button>
           <button class="btn btn-sm btn-dark" onclick="${varName}.close('${name}')">CLOSE</button>
@@ -484,8 +486,10 @@ class ServoPanel {
       if (!panel) return;
       const oEl = el(`sc-open-${name}`);
       const cEl = el(`sc-close-${name}`);
+      const sEl = el(`sc-speed-${name}`);
       if (oEl) oEl.value = panel.open;
       if (cEl) cEl.value = panel.close;
+      if (sEl) sEl.value = panel.speed ?? 10;
     });
   }
 
@@ -494,19 +498,15 @@ class ServoPanel {
   }
 
   open(name) {
-    const panel = (_servoCfg.panels || {})[name] || {};
-    const dur   = panel.open_ms || 117;
-    api(`${this._apiPrefix}/open`, 'POST', { name, duration: dur }).then(d => {
-      if (d) { toast(`P${name.split('_').pop()}: OPEN (${dur}ms)`, 'ok'); this._setFill(name, 100); }
+    api(`${this._apiPrefix}/open`, 'POST', { name }).then(d => {
+      if (d) { toast(`P${name.split('_').pop()}: OPEN`, 'ok'); this._setFill(name, 100); }
     });
     this._state[name] = 'open';
   }
 
   close(name) {
-    const panel = (_servoCfg.panels || {})[name] || {};
-    const dur   = panel.close_ms || 117;
-    api(`${this._apiPrefix}/close`, 'POST', { name, duration: dur }).then(d => {
-      if (d) { toast(`P${name.split('_').pop()}: CLOSE (${dur}ms)`, 'ok'); this._setFill(name, 0); }
+    api(`${this._apiPrefix}/close`, 'POST', { name }).then(d => {
+      if (d) { toast(`P${name.split('_').pop()}: CLOSE`, 'ok'); this._setFill(name, 0); }
     });
     this._state[name] = 'close';
   }
@@ -516,11 +516,16 @@ class ServoPanel {
     this._servos.forEach(name => {
       const oEl = el(`sc-open-${name}`);
       const cEl = el(`sc-close-${name}`);
+      const sEl = el(`sc-speed-${name}`);
       if (oEl && cEl) {
-        panels[name] = { open: parseInt(oEl.value) || 70, close: parseInt(cEl.value) || 70 };
+        panels[name] = {
+          open:  parseInt(oEl.value) || 110,
+          close: parseInt(cEl.value) || 20,
+          speed: parseInt(sEl?.value) || 10,
+        };
       }
     });
-    const data = await api('/servo/settings', 'POST', { ms_90deg: _servoCfg.ms_90deg || 150, panels });
+    const data = await api('/servo/settings', 'POST', { panels });
     if (!data) { toast('Erreur réseau', 'error'); return; }
     _servoCfg = data;
     this.updateInputs();

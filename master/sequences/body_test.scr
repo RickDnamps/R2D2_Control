@@ -1,0 +1,9 @@
+# Body Test — Test des panneaux body LLD + RLD
+# Source: body_test.scr (dpoulson/r2_control) — body,LLD + body,RLD
+# LLD = body_panel_1, RLD = body_panel_2
+servo,body_panel_1,open
+sleep,0.1
+servo,body_panel_2,open
+sleep,1
+servo,body_panel_1,close
+servo,body_panel_2,close

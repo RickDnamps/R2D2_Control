@@ -1,0 +1,6 @@
+# Leia — Message holographique : teeces,leia + son + attente
+# Source: leia.scr (dpoulson/r2_control) — sound,LEIA + rseries,30000 + flthy,S1
+sound,LEIA
+teeces,random
+sleep,30
+teeces,off

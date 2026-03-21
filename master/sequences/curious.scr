@@ -1,0 +1,38 @@
+# Curious — R2-D2 curieux : ouvritures lentes et délibérées, dôme qui tourne
+sound,RANDOM,proc
+dome,turn,0.3
+sleep,1.5
+dome,stop
+sleep,0.4
+# Ouverture lente et partielle — comme s'il regarde (speed 3, angle 55°)
+servo,dome_panel_1,open,55,3
+sleep,0.6
+servo,dome_panel_1,close,20,3
+sleep,0.3
+sound,RANDOM,proc
+dome,turn,-0.3
+sleep,1.5
+dome,stop
+sleep,0.3
+# Jette un autre œil de l'autre côté (speed 2 = très lent, contemplatif)
+servo,dome_panel_2,open,50,2
+sleep,0.8
+# Ouvre un deuxième panneau en même temps — intrigué
+servo,dome_panel_3,open,45,2
+sleep,1.0
+servo,dome_panel_2,close,20,3
+servo,dome_panel_3,close,20,3
+sleep,0.5
+sound,RANDOM,ooh
+# Légère excitation — panel qui frétille
+servo,dome_panel_1,open,40,7
+sleep,0.15
+servo,dome_panel_1,close,20,7
+sleep,0.12
+servo,dome_panel_1,open,40,7
+sleep,0.15
+servo,dome_panel_1,close,20,7
+sleep,0.5
+teeces,random
+sleep,3
+teeces,off

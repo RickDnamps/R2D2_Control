@@ -1,0 +1,25 @@
+# Startup — R2-D2 s'allume : séquence de boot dramatique
+teeces,text,R2-D2
+sleep,1.5
+sound,RANDOM,proc
+teeces,random
+sleep,1.0
+servo,dome_panel_1,open
+servo,dome_panel_3,open
+sleep,0.3
+servo,dome_panel_2,open
+servo,dome_panel_4,open
+sleep,0.5
+servo,dome_panel_5,open
+servo,dome_panel_6,open
+servo,dome_panel_7,open
+servo,dome_panel_8,open
+sleep,1.5
+servo,all,close
+sleep,0.5
+sound,RANDOM,happy
+teeces,psi,1
+sleep,3
+teeces,random
+sleep,2
+teeces,off

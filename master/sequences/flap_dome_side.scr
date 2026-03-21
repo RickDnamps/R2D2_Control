@@ -1,0 +1,15 @@
+# Flap Dome Side — Panneaux latéraux P1-P4 open/close un par un
+# Source: flap_dome_side.scr (dpoulson/r2_control)
+servo,dome_panel_1,open
+sleep,0.1
+servo,dome_panel_1,close
+servo,dome_panel_2,open
+sleep,0.1
+servo,dome_panel_2,close
+servo,dome_panel_3,open
+sleep,0.1
+servo,dome_panel_3,close
+servo,dome_panel_4,open
+sleep,0.1
+servo,dome_panel_4,close
+sleep,0.1

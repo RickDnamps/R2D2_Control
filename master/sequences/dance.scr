@@ -1,0 +1,12 @@
+# Dance — Animation body : LLD + BotArm
+# Source: dance.scr (dpoulson/r2_control)
+# LLD = body_panel_1, BotArm = body_panel_3
+servo,body_panel_1,open
+servo,body_panel_3,open
+servo,body_panel_3,0.8,300
+servo,body_panel_3,0.9,300
+servo,body_panel_3,0.8,300
+sleep,2
+servo,body_panel_1,close
+servo,body_panel_3,close
+sleep,1

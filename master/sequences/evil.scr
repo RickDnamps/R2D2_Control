@@ -1,0 +1,5 @@
+# Evil — Animation Teeces sinistre prolongée, sans son
+# Source: evil.scr (dpoulson/r2_control) — rseries,51000 uniquement
+teeces,random
+sleep,51
+teeces,off

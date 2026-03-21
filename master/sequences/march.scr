@@ -1,0 +1,6 @@
+# March — Imperial March (Theme002) + animation Teeces ~40s
+# Source: march.scr (dpoulson/r2_control) — sound,Theme002 + rseries,40500
+sound,Theme002
+teeces,random
+sleep,40.5
+teeces,off

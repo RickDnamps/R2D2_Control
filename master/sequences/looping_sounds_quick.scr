@@ -1,0 +1,11 @@
+# Looping Sounds Quick — Sons aléatoires rapprochés (15-30s entre chaque)
+# Source: looping_sounds_quick.scr (dpoulson/r2_control)
+# Lancer avec loop=true : POST /scripts/run {"name":"looping_sounds_quick","loop":true}
+sound,RANDOM,happy
+sleep,random,15,30
+sound,RANDOM,proc
+sleep,random,15,30
+sound,RANDOM,misc
+sleep,random,15,30
+sound,RANDOM,razz
+sleep,random,15,30

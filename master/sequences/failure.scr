@@ -1,0 +1,6 @@
+# Failure — Cri de R2 + animation Teeces — rien d'autre
+# Source: failure.scr (dpoulson/r2_control) — sound,SCREA003 + rseries,20000
+sound,SCREA003
+teeces,random
+sleep,20
+teeces,off

@@ -1,0 +1,30 @@
+# Wolf Whistle — Teeces + sifflet WOLFWSTL + panneau 1 qui s'agite
+# Source: wolfwhistle.scr (dpoulson/r2_control) — rseries,59004 + sound,WOLFWSTL + dome,P1 flutter
+teeces,random
+sound,WOLFWSTL
+sleep,0.3
+servo,dome_panel_1,open
+sleep,0.05
+servo,dome_panel_1,close
+sleep,0.1
+servo,dome_panel_1,open
+sleep,0.2
+servo,dome_panel_1,close
+sleep,0.2
+servo,dome_panel_1,open
+sleep,0.2
+servo,dome_panel_1,close
+sleep,0.1
+servo,dome_panel_1,open
+sleep,0.3
+servo,dome_panel_1,close
+sleep,0.2
+servo,dome_panel_1,open
+sleep,0.2
+servo,dome_panel_1,close
+sleep,0.2
+servo,dome_panel_1,open
+sleep,0.1
+servo,dome_panel_1,close
+sleep,55
+teeces,off

@@ -1,0 +1,27 @@
+# Patrol — R2-D2 patrouille et réagit à l'environnement
+sound,RANDOM,hum
+sleep,1.0
+dome,random,on
+sleep,random,3,6
+dome,random,off
+dome,stop
+sound,RANDOM,happy
+sleep,1.5
+servo,body_panel_1,open
+sleep,0.5
+servo,body_panel_1,close
+sleep,random,2,4
+sound,RANDOM,proc
+sleep,1.0
+servo,dome_panel_1,open
+sleep,0.3
+servo,dome_panel_1,close
+dome,turn,0.4
+sleep,1.5
+dome,turn,-0.4
+sleep,1.5
+dome,stop
+teeces,random
+sleep,random,2,5
+sound,RANDOM,sent
+sleep,1.0

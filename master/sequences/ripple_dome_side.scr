@@ -1,0 +1,18 @@
+# Ripple Dome Side — Panneaux latéraux P1-P4 s'ouvrent puis se ferment un par un
+# Source: ripple_dome_side.scr (dpoulson/r2_control)
+servo,dome_panel_1,open
+sleep,0.1
+servo,dome_panel_2,open
+sleep,0.1
+servo,dome_panel_3,open
+sleep,0.1
+servo,dome_panel_4,open
+sleep,0.1
+servo,dome_panel_1,close
+sleep,0.1
+servo,dome_panel_2,close
+sleep,0.1
+servo,dome_panel_3,close
+sleep,0.1
+servo,dome_panel_4,close
+sleep,0.1

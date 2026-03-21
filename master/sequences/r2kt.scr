@@ -1,0 +1,6 @@
+# R2KT — Animation Teeces + sifflement (hommage R2-KT)
+# Source: r2kt.scr (dpoulson/r2_control) — rseries,59004 + sound,WOLFWSTL
+teeces,random
+sound,WOLFWSTL
+sleep,59
+teeces,off

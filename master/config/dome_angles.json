@@ -1,13 +1,13 @@
 {
-  "dome_panel_1":  {"open": 110, "close": 20},
-  "dome_panel_2":  {"open": 110, "close": 20},
-  "dome_panel_3":  {"open": 110, "close": 20},
-  "dome_panel_4":  {"open": 110, "close": 20},
-  "dome_panel_5":  {"open": 110, "close": 20},
-  "dome_panel_6":  {"open": 110, "close": 20},
-  "dome_panel_7":  {"open": 110, "close": 20},
-  "dome_panel_8":  {"open": 110, "close": 20},
-  "dome_panel_9":  {"open": 110, "close": 20},
-  "dome_panel_10": {"open": 110, "close": 20},
-  "dome_panel_11": {"open": 110, "close": 20}
+  "dome_panel_1":  {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_2":  {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_3":  {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_4":  {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_5":  {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_6":  {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_7":  {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_8":  {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_9":  {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_10": {"open": 110, "close": 20, "speed": 10},
+  "dome_panel_11": {"open": 110, "close": 20, "speed": 10}
 }

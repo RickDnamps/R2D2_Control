@@ -1,0 +1,47 @@
+# Angry — R2-D2 en colère : panneaux qui claquent agressivement, sons razz
+sound,RANDOM,razz
+teeces,random
+# Claquement brutal — tous les panneaux d'un coup (speed 10 = instantané)
+servo,all,open
+sleep,0.12
+servo,all,close
+sleep,0.04
+servo,all,open
+sleep,0.08
+servo,all,close
+sleep,0.06
+servo,all,open
+sleep,0.04
+servo,all,close
+sleep,0.4
+sound,RANDOM,razz
+sleep,0.8
+# Deuxième salve — alternance rapide dôme gauche/droite
+servo,dome_panel_1,open,110,10
+servo,dome_panel_2,open,110,10
+servo,dome_panel_3,open,110,10
+sleep,0.1
+servo,dome_panel_1,close,20,10
+servo,dome_panel_2,close,20,10
+servo,dome_panel_3,close,20,10
+sleep,0.06
+servo,dome_panel_4,open,110,10
+servo,dome_panel_5,open,110,10
+servo,dome_panel_6,open,110,10
+sleep,0.1
+servo,dome_panel_4,close,20,10
+servo,dome_panel_5,close,20,10
+servo,dome_panel_6,close,20,10
+sleep,0.5
+teeces,text,GRAAAH
+sleep,1.5
+# Fin — retour au calme lent (speed 3 = menaçant)
+servo,dome_panel_1,open,80,3
+servo,dome_panel_2,open,80,3
+sleep,0.8
+servo,dome_panel_1,close,20,3
+servo,dome_panel_2,close,20,3
+sleep,0.5
+teeces,random
+sleep,2.5
+teeces,off

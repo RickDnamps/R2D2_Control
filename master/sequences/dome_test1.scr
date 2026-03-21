@@ -1,0 +1,11 @@
+# Dome Test 1 — Ouvre P1-P4 simultanément, pause 2s, ferme
+# Source: dome_test1.scr (dpoulson/r2_control)
+servo,dome_panel_1,open
+servo,dome_panel_2,open
+servo,dome_panel_3,open
+servo,dome_panel_4,open
+sleep,2
+servo,dome_panel_1,close
+servo,dome_panel_2,close
+servo,dome_panel_3,close
+servo,dome_panel_4,close

@@ -1,0 +1,18 @@
+# Test — Chaque panneau dôme open/close un par un
+# Source: test.scr (dpoulson/r2_control)
+servo,dome_panel_1,open
+servo,dome_panel_1,close
+servo,dome_panel_2,open
+servo,dome_panel_2,close
+servo,dome_panel_3,open
+servo,dome_panel_3,close
+servo,dome_panel_4,open
+servo,dome_panel_4,close
+servo,dome_panel_6,open
+servo,dome_panel_6,close
+servo,dome_panel_7,open
+servo,dome_panel_7,close
+servo,dome_panel_8,open
+servo,dome_panel_8,close
+servo,dome_panel_5,open
+servo,dome_panel_5,close

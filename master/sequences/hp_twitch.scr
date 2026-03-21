@@ -1,0 +1,9 @@
+# HP Twitch — Holographic Projector twitch aléatoire
+# Source: hp_twitch.scr (dpoulson/r2_control) — dome,FHP_X positions aléatoires
+# FHP_X = projecteur holographique avant (servo dédié — si non connecté : sans effet)
+servo,dome_panel_9,close
+sleep,random,10,30
+servo,dome_panel_9,0.5,300
+sleep,random,10,30
+servo,dome_panel_9,open
+sleep,random,10,30

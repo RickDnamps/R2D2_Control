@@ -1,0 +1,4 @@
+# Theme — Star Wars Main Theme (Theme001) — son uniquement, ~38s
+# Source: theme.scr (dpoulson/r2_control) — sound,Theme001 + sleep,38
+sound,Theme001
+sleep,38
