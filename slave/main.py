@@ -95,7 +95,12 @@ def main() -> None:
 
     def resume_vesc() -> None:
         log.info("Réactivation VESC — heartbeat repris")
-        display.boot_start()   # reset RP2040 hors LOCKED
+        try:
+            with open(VERSION_FILE) as f:
+                v = f.read().strip()
+        except Exception:
+            v = ""
+        display.ok(v)   # système déjà opérationnel — aller directement à STATE_OK
         # Phase 2: vesc_g.resume() + vesc_d.resume()
 
     # ------------------------------------------------------------------
