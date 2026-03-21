@@ -166,21 +166,17 @@ def draw_booting(tft, full=False):
     _spin_frame = (_spin_frame + 1) % 8
 
     if full or not _booting_bg_drawn:
-        # Redraw complet une seule fois
         tft.fill(BLACK)
-        _draw_ring(tft, CENTER_X, CENTER_Y, 115, 6, ORANGE)
-        _text_center(tft, 'STARTING UP', CENTER_Y - 20, ORANGE)
-        _text_center(tft, 'Please wait', CENTER_Y - 6,  GRAY)
-        _text_center(tft, 'R2-D2',       CENTER_Y + 50, ORANGE)
-        # Dessiner tous les segments en DK_GRAY
+        _draw_ring(tft, CENTER_X, CENTER_Y, 115, 8, ORANGE)
+        _text_center(tft, 'SYSTEM STATUS:', CENTER_Y - 45, ORANGE)
+        _text_center(tft, 'STARTING UP',   CENTER_Y - 31, ORANGE)
+        _text_center(tft, 'BOOT...',        CENTER_Y + 48, GRAY)
         for sx, sy, sw, sh in _SPIN_SEGS:
             tft.fill_rect(sx, sy, sw, sh, DK_GRAY)
         _booting_bg_drawn = True
-        # Allumer le segment courant
         sx, sy, sw, sh = _SPIN_SEGS[_spin_frame]
         tft.fill_rect(sx, sy, sw, sh, ORANGE)
     else:
-        # Mise a jour incrementale : eteindre ancien segment, allumer nouveau
         px, py, pw, ph = _SPIN_SEGS[prev_frame]
         tft.fill_rect(px, py, pw, ph, DK_GRAY)
         sx, sy, sw, sh = _SPIN_SEGS[_spin_frame]
@@ -196,20 +192,24 @@ def draw_locked(tft, full=False):
 
     if full or not _locked_bg_drawn:
         tft.fill(BLACK)
-        _text_center(tft, 'SYSTEM STATUS:', 34, RED)
-        _text_center(tft, 'LOCKED',        46, RED)
+        _text_center(tft, 'SYSTEM STATUS:', 36, RED)
         # Corps cadenas
-        tft.fill_rect(CENTER_X - 20, CENTER_Y - 10, 40, 32, RED)
-        tft.fill_rect(CENTER_X - 14, CENTER_Y - 4,  28, 20, BLACK)
+        tft.fill_rect(CENTER_X - 20, CENTER_Y - 8, 40, 30, RED)
+        tft.fill_rect(CENTER_X - 13, CENTER_Y - 2, 26, 18, BLACK)
+        # Trou de serrure
+        tft.fill_rect(CENTER_X - 3, CENTER_Y + 2, 7, 10, RED)
         # Anse
         arc_r = 16
         for dy in range(-arc_r, 0):
             r2 = arc_r * arc_r - dy * dy
             if r2 >= 0:
-                tft.fill_rect(CENTER_X - 21, CENTER_Y - 10 + dy, 4, 1, RED)
-                tft.fill_rect(CENTER_X + 17, CENTER_Y - 10 + dy, 4, 1, RED)
-        _text_center(tft, 'WATCHDOG',  CENTER_Y + 36, RED)
-        _text_center(tft, 'TRIGGERED', CENTER_Y + 48, WHITE)
+                tft.fill_rect(CENTER_X - 22, CENTER_Y - 8 + dy, 5, 1, RED)
+                tft.fill_rect(CENTER_X + 17, CENTER_Y - 8 + dy, 5, 1, RED)
+        _text_center(tft, 'SYSTEM',             CENTER_Y + 28, RED)
+        _text_center(tft, 'LOCKED',             CENTER_Y + 40, RED)
+        tft.fill_rect(CENTER_X - 50, CENTER_Y + 54, 100, 1, DK_GRAY)
+        _text_center(tft, 'WATCHDOG TRIGGERED', CENTER_Y + 60, GRAY)
+        _text_center(tft, 'MOTORS STOPPED',     CENTER_Y + 72, GRAY)
         _locked_bg_drawn = True
 
     # Seul l'anneau clignote — mise a jour incrementale
@@ -218,52 +218,82 @@ def draw_locked(tft, full=False):
 
 def draw_ok(tft, version, bus_pct=100.0):
     tft.fill(BLACK)
-    _draw_ring(tft, CENTER_X, CENTER_Y, 115, 4, GREEN)
-    _text_center(tft, 'SYSTEM STATUS:', 42, GREEN)
-    _text_center(tft, 'OK',            54, GREEN)
-    tft.fill_rect(CENTER_X - 40, CENTER_Y - 14, 80, 12, GREEN)
-    tft.fill_rect(CENTER_X - 40, CENTER_Y +  2, 80, 12, GREEN)
-    _text_center(tft, 'READY', CENTER_Y + 24, GREEN)
+    bus_color  = GREEN if bus_pct >= 80.0 else ORANGE
+    ring_color = GREEN if bus_pct >= 80.0 else ORANGE
+    _draw_ring(tft, CENTER_X, CENTER_Y, 115, 4, ring_color)
+    _text_center(tft, 'SYSTEM STATUS:', 50, GREEN)
+    _text_center(tft, 'OPERATIONAL',   64, GREEN)
+    tft.fill_rect(CENTER_X - 50, 78, 100, 1, DK_GRAY)
     if version:
-        _text_center(tft, version[:14], CENTER_Y + 38, GRAY)
-    bus_color = GREEN if bus_pct >= 80.0 else ORANGE
-    bus_label = 'BUS {:.0f}%'.format(bus_pct)
-    _text_center(tft, bus_label, CENTER_Y + 54, bus_color)
-    _progress_bar(tft, 34, CENTER_Y + 64, 172, 8, bus_pct / 100.0, bus_color)
+        _text_center(tft, 'v' + version[:11], 88, GREEN)
+    _text_center(tft, 'UART BUS HEALTH', 106, bus_color)
+    _progress_bar(tft, 34, 118, 172, 10, bus_pct / 100.0, bus_color)
+    _text_center(tft, '{:.0f}%'.format(bus_pct), 133, bus_color)
+    if bus_pct < 80.0:
+        _text_center(tft, 'PARASITES DETECTES', 147, ORANGE)
+    tft.fill_rect(CENTER_X - 50, 156, 100, 1, DK_GRAY)
+    _text_center(tft, '< swipe >  TELEM', 164, GRAY)
     reset_animations()
+
+
+def _draw_antenna(tft, cx, cy, color):
+    """Antenne avec 3 ondes — dessin en primitives."""
+    # Mat vertical
+    tft.fill_rect(cx - 1, cy - 28, 3, 28, color)
+    # 3 arcs d'onde (approximes par des arcs de cercle horizontaux)
+    for r, dy_offset in [(10, -28), (17, -32), (24, -36)]:
+        for dy in range(-r // 3, r // 3 + 1):
+            dx = int((r * r - dy * dy * 9) ** 0.5) if r * r >= dy * dy * 9 else 0
+            if dx > 0:
+                tft.fill_rect(cx - dx, cy + dy_offset + r // 3 + dy, dx * 2, 1, color)
+                break
+        # Approche plus simple : juste des barres horizontales etagees
+    tft.fill_rect(cx -  8, cy - 22, 16, 2, color)
+    tft.fill_rect(cx - 14, cy - 28, 28, 2, color)
+    tft.fill_rect(cx - 20, cy - 34, 40, 2, color)
+    # Point base
+    tft.fill_rect(cx - 3, cy, 7, 3, color)
 
 
 def draw_net(tft, sub_state):
     tft.fill(BLACK)
-    _draw_ring(tft, CENTER_X, CENTER_Y, 115, 5, CYAN)
-    _text_center(tft, 'WIFI', 30, CYAN)
-    cx, cy = CENTER_X, CENTER_Y + 10
-    for radius, alpha in [(14, 255), (24, 180), (34, 100)]:
-        c = gc9a01.color565(0, alpha, alpha)
-        tft.fill_rect(cx - radius, cy - radius, radius * 2, 3, c)
-    tft.fill_rect(cx - 1, cy - 34, 3, 34, CYAN)
-    tft.fill_rect(cx - 8, cy,      17,  3, CYAN)
     parts = sub_state.split(':') if sub_state else []
     cmd   = parts[0].upper() if parts else ''
+    # Couleur selon etat
+    if cmd == 'HOME':
+        net_color = BLUE
+        ring_w    = 5
+    elif cmd in ('SCANNING', 'AP'):
+        net_color = BLUE
+        ring_w    = 6
+    else:
+        net_color = BLUE
+        ring_w    = 5
+    _draw_ring(tft, CENTER_X, CENTER_Y, 115, ring_w, net_color)
+    _text_center(tft, 'NETWORK', 36, net_color)
+    _draw_antenna(tft, CENTER_X, CENTER_Y + 10, net_color)
     if cmd == 'SCANNING':
         n = parts[1] if len(parts) > 1 else '?'
-        _text_center(tft, 'SCANNING...',                 CENTER_Y + 46, CYAN)
-        _text_center(tft, 'Attempt {}/{}'.format(n, 5), CENTER_Y + 58, GRAY)
+        _text_center(tft, 'SCANNING...',              CENTER_Y + 46, net_color)
+        _text_center(tft, 'MASTER AP NOT FOUND',      CENTER_Y + 58, GRAY)
+        _text_center(tft, 'ATTEMPT {}/5'.format(n),   CENTER_Y + 70, GRAY)
     elif cmd == 'AP':
         n = parts[1] if len(parts) > 1 else '?'
-        _text_center(tft, 'CONNECTING AP',               CENTER_Y + 46, CYAN)
-        _text_center(tft, 'Attempt {}/{}'.format(n, 5), CENTER_Y + 58, GRAY)
+        _text_center(tft, 'CONNECTING',               CENTER_Y + 46, net_color)
+        _text_center(tft, 'R2D2_Control',             CENTER_Y + 58, net_color)
+        _text_center(tft, 'ATTEMPT {}/5'.format(n),   CENTER_Y + 70, GRAY)
     elif cmd == 'HOME_TRY':
-        _text_center(tft, 'HOME WIFI',     CENTER_Y + 46, ORANGE)
-        _text_center(tft, 'Connecting...', CENTER_Y + 58, GRAY)
+        _text_center(tft, 'HOME WIFI',                CENTER_Y + 46, ORANGE)
+        _text_center(tft, 'CONNECTING...',            CENTER_Y + 58, GRAY)
     elif cmd == 'HOME':
         ip = ':'.join(parts[1:]) if len(parts) > 1 else '?'
-        _text_center(tft, 'HOME WIFI', CENTER_Y + 46, ORANGE)
-        _text_center(tft, ip[:16],     CENTER_Y + 58, GRAY)
+        _text_center(tft, 'HOME WIFI ACTIVE',         CENTER_Y + 46, ORANGE)
+        _text_center(tft, ip[:16],                    CENTER_Y + 58, GRAY)
+        _text_center(tft, 'SSH DEBUG OK',             CENTER_Y + 70, GRAY)
     elif cmd == 'OK':
-        _text_center(tft, 'RECONNECTED', CENTER_Y + 46, GREEN)
+        _text_center(tft, 'RECONNECTED',              CENTER_Y + 46, GREEN)
     else:
-        _text_center(tft, sub_state[:16] if sub_state else 'NET EVENT', CENTER_Y + 46, CYAN)
+        _text_center(tft, sub_state[:16] if sub_state else 'NET EVENT', CENTER_Y + 46, net_color)
     reset_animations()
 
 
@@ -285,16 +315,23 @@ def draw_error(tft, code):
 def draw_telemetry(tft, voltage, temp):
     tft.fill(BLACK)
     _draw_ring(tft, CENTER_X, CENTER_Y, 115, 4, BLUE)
-    _text_center(tft, 'TELEMETRY', 28, BLUE)
-    v_str = '{:.1f}V'.format(voltage)
-    _text_center(tft, v_str, 48, WHITE)
+    _text_center(tft, 'TELEMETRY', 34, BLUE)
+    # Tension
+    v_str     = '{:.1f}V'.format(voltage)
+    _text_center(tft, v_str, 52, WHITE)
     v_pct     = max(0.0, min(1.0, (voltage - 20.0) / 9.4))
     bar_color = GREEN if v_pct > 0.3 else (ORANGE if v_pct > 0.15 else RED)
-    _progress_bar(tft, 34, 70, 172, 16, v_pct, bar_color)
+    _progress_bar(tft, 34, 66, 172, 14, v_pct, bar_color)
+    lipo_pct  = '{:.0f}%'.format(v_pct * 100)
+    _text_center(tft, '6S LiPo  ' + lipo_pct, 85, bar_color)
+    tft.fill_rect(CENTER_X - 50, 98, 100, 1, DK_GRAY)
+    # Temperature
     temp_color = GREEN if temp < 60 else (ORANGE if temp < 75 else RED)
     t_str      = 'TEMP: {:.0f}C'.format(temp)
-    _text_center(tft, t_str, 100, temp_color)
-    _progress_bar(tft, 34, 116, 172, 10, temp / 100.0, temp_color)
+    _text_center(tft, t_str, 108, temp_color)
+    _progress_bar(tft, 34, 122, 172, 10, temp / 100.0, temp_color)
+    tft.fill_rect(CENTER_X - 50, 142, 100, 1, DK_GRAY)
+    _text_center(tft, '< swipe  BACK TO OK', 150, GRAY)
     reset_animations()
 
 
