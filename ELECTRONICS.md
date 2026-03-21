@@ -6,6 +6,7 @@ Complete wiring diagrams, power distribution, and communication architecture for
 
 ## Table of Contents
 
+- [Hardware Inventory](#0-hardware-inventory)
 - [System Architecture](#1-system-architecture)
 - [Power Distribution](#2-power-distribution)
 - [Slip Ring Wiring](#3-slip-ring-wiring)
@@ -14,6 +15,77 @@ Complete wiring diagrams, power distribution, and communication architecture for
 - [I2C & GPIO Reference](#6-i2c--gpio-reference)
 - [UART Protocol](#7-uart-protocol-reference)
 - [Component Notes](#8-component-notes)
+
+---
+
+## 0. Hardware Inventory
+
+### Master — Raspberry Pi 4B 4GB (Dome — rotates with slip ring)
+
+| Component | Interface | Details |
+|-----------|-----------|---------|
+| Waveshare Servo Driver HAT | I2C 0x40 | PCA9685 16ch — 11 dome panel servos (MG90S 180°) |
+| Teeces32 (FLD/RLD/PSI LED logics) | USB `/dev/ttyUSB0` | JawaLite protocol 9600 baud |
+| Camera | USB | Vision / person tracking — Phase 5 |
+| UART to Slave Pi | BCM 14/15 `/dev/ttyAMA0` | Via slip ring 3.3V |
+
+### Slave — Raspberry Pi 4B 2GB (Body — fixed)
+
+| Component | Interface | Details |
+|-----------|-----------|---------|
+| Waveshare Motor Driver HAT | I2C 0x40 | TB6612 — dome DC rotation motor |
+| PCA9685 Breakout | I2C 0x41 | 16ch PWM — 11 body panel servos (MG90S 180°) |
+| FSESC Mini 6.7 PRO × 2 | USB `/dev/ttyACM0` `/dev/ttyACM1` | PyVESC — 250W hub motors 24V |
+| RP2040-Waveshare 1.28" LCD | USB `/dev/ttyACM2` | Round 240×240 diagnostic display (GC9A01) |
+| 3.5mm audio jack (native Pi) | Native Pi 4B | mpg123 → Amplifier → Speakers |
+| UART to Master Pi | BCM 14/15 `/dev/ttyAMA0` | Via slip ring 3.3V |
+
+### Servos — MG90S 180° (metal gears)
+
+- 11 dome panels + 11 body panels = 22 total
+- Supply: 5V via HAT V+ (same buck as Pi)
+- Control: direct angle — `pulse_us = 500 + (angle/180.0) * 2000`
+- Per-panel calibration: O° open / C° close / S speed (1–10) saved in JSON (gitignored)
+
+> ⚠️ SG90 360° (continuous rotation) are visually identical but have no position feedback.
+> Verify type: try rotating the shaft past 180° by hand — resistance = standard 180° ✅, spins freely = continuous ❌
+
+### Battery — 6S LiPo 10 000mAh XT90-S
+
+| Spec | Value |
+|------|-------|
+| Nominal voltage | 22.2V (6S × 3.7V) |
+| Full charge | 25.2V (6S × 4.2V) |
+| Capacity | 10 000mAh |
+| Connector | **XT90-S** (anti-spark built-in) |
+| VESC compatibility | ✅ FSESC Mini 6.7 PRO supports 4–13S |
+
+Estimated runtime: ~1h30 at casual use (~100–150W average draw).
+
+### Buck Converters (Tobsun)
+
+| Buck | Model | Input | Output | Location | Powers |
+|------|-------|-------|--------|----------|--------|
+| Body 5V | EA50-5V | 10–30V | 5V / 10A | Body | Pi Slave (GPIO) + Body Servo HAT + RP2040 |
+| Body 12V | EA120-12V | 18–32V | 12V / 10A | Body | Motor HAT (dome motor) + Audio Amplifier |
+| Dome 5V | EA50-5V | 10–30V | 5V / 10A | Dome | Pi Master (GPIO) + Dome Servo HAT + Teeces32 |
+
+### Safety Components
+
+| Component | Rating | Location | Role |
+|-----------|--------|----------|------|
+| Fuse + holder | **80A** | As close as possible to battery + | Main short-circuit protection |
+| Main switch | **30A+** | After 80A fuse | Kill everything |
+| XT90-S | — | Battery connector (built-in) | Anti-spark for VESC capacitors |
+| Fuse + holder | **15A** | Electronics branch | Pi/servo protection |
+| Electronics switch | **10A** | Electronics branch | Power on/off independently |
+
+### Pending Components
+
+| Component | Qty | Spec | Use |
+|-----------|-----|------|-----|
+| Electrolytic capacitor | 2 | 1000µF 10V (or 16V) | Filter 5V rail — Servo HAT V+ input |
+| Ceramic capacitor | 2 | 100nF | HF filter in parallel with 1000µF |
 
 ---
 
@@ -313,7 +385,8 @@ All messages follow this format over `/dev/ttyAMA0` at **115200 baud**:
 TYPE:VALUE:CRC\n
 ```
 
-CRC = XOR of all bytes in `TYPE:VALUE`.
+CRC = arithmetic sum of all bytes in `TYPE:VALUE`, modulo 256, formatted as 2 hex chars (e.g. `B3`).
+> ⚠️ This is **sum mod 256**, NOT XOR — two identical bytes cancel with XOR but not with sum.
 
 ### Message Types
 
