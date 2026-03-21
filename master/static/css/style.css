@@ -440,6 +440,15 @@ body::after {
   min-height: 2px;
 }
 
+/* Emergency stop row */
+.estop-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 560px;
+  justify-content: center;
+}
+
 /* Emergency stop */
 .estop-btn {
   background: rgba(40, 0, 8, 0.9);
@@ -472,6 +481,34 @@ body::after {
 .estop-btn:hover, .estop-btn:active {
   background: var(--red);
   color: #fff;
+  text-shadow: none;
+}
+
+.estop-reset-btn {
+  background: rgba(0, 20, 10, 0.9);
+  border: 2px solid var(--green);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: bold;
+  padding: 14px 24px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  letter-spacing: 3px;
+  flex: 1;
+  max-width: 280px;
+  touch-action: manipulation;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-shadow: 0 0 8px var(--green);
+  transition: background 0.1s;
+}
+
+.estop-reset-btn:hover, .estop-reset-btn:active {
+  background: var(--green);
+  color: #000;
   text-shadow: none;
 }
 

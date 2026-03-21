@@ -138,6 +138,8 @@ class VirtualJoystick {
   constructor(ringId, knobId, onMove, onStop, valXId = null, valYId = null) {
     this.ring   = el(ringId);
     this.knob   = el(knobId);
+    this._lastSend = 0;   // throttle: ms timestamp of last onMove call
+    this._THROTTLE_MS = 1000 / 60;  // 60 req/s max
     this.onMove = onMove;
     this.onStop = onStop;
     this._valXId = valXId;
@@ -190,7 +192,11 @@ class VirtualJoystick {
     this.y = Math.max(-1, Math.min(1, dy / maxR));
 
     this.knob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
-    this.onMove(this.x, this.y);
+    const now = performance.now();
+    if (now - this._lastSend >= this._THROTTLE_MS) {
+      this._lastSend = now;
+      this.onMove(this.x, this.y);
+    }
 
     // Android haptic feedback — light vibration when joystick moves significantly
     const nx = this.x;
@@ -251,6 +257,16 @@ function emergencyStop() {
   api('/system/estop', 'POST');
   toast('EMERGENCY STOP', 'error');
   audioBoard.setPlaying(false);
+}
+
+function estopReset() {
+  api('/system/estop_reset', 'POST').then(r => {
+    if (r && r.status === 'reset') {
+      toast('E-STOP RESET — servos réarmés', 'ok');
+    } else {
+      toast('Reset échoué', 'error');
+    }
+  }).catch(() => toast('Reset échoué', 'error'));
 }
 
 // Left joystick — Propulsion (arcade drive)

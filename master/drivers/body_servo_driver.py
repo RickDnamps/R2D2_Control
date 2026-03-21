@@ -82,6 +82,9 @@ class BodyServoDriver:
     # ------------------------------------------------------------------
 
     def _send(self, name: str, angle_deg: float) -> bool:
+        if not self._ready:
+            log.warning("BodyServoDriver non prêt — commande ignorée (%r)", name)
+            return False
         if name not in KNOWN_SERVOS:
             log.warning("Servo inconnu: %r", name)
         ok = self._uart.send('SRV', f'{name},{angle_deg:.1f}')

@@ -152,3 +152,20 @@ def system_estop():
         daemon=True
     ).start()
     return jsonify({'status': 'estop_sent'})
+
+
+@status_bp.post('/system/estop_reset')
+def system_estop_reset():
+    """Réarme les drivers servo après un E-STOP — réinitialise PCA9685 sans redémarrer le service."""
+    import logging
+    log = logging.getLogger(__name__)
+    results = {}
+    if reg.dome_servo:
+        ok = reg.dome_servo.setup()
+        results['dome_servo'] = 'ok' if ok else 'erreur'
+        log.info("estop_reset: dome_servo setup → %s", results['dome_servo'])
+    if reg.servo:
+        ok = reg.servo.setup()
+        results['body_servo'] = 'ok' if ok else 'erreur'
+        log.info("estop_reset: body_servo setup → %s", results['body_servo'])
+    return jsonify({'status': 'reset', 'drivers': results})

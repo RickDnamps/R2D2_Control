@@ -146,10 +146,16 @@
       </div>
 
       <!-- Emergency stop -->
-      <button class="estop-btn" id="estop-btn" onclick="emergencyStop()">
-        <span class="estop-icon">&#9632;</span>
-        <span class="estop-text">EMERGENCY STOP</span>
-      </button>
+      <div class="estop-row">
+        <button class="estop-btn" id="estop-btn" onclick="emergencyStop()">
+          <span class="estop-icon">&#9632;</span>
+          <span class="estop-text">EMERGENCY STOP</span>
+        </button>
+        <button class="estop-reset-btn" id="estop-reset-btn" onclick="estopReset()">
+          <span class="estop-icon">&#9654;</span>
+          <span class="estop-text">RESET E-STOP</span>
+        </button>
+      </div>
 
       <!-- Speed + dome controls -->
       <div class="drive-controls-row">
