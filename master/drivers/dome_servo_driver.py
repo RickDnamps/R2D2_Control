@@ -83,9 +83,20 @@ class DomeServoDriver(BaseDriver):
 
     def shutdown(self) -> None:
         if self._bus:
-            close_pulse = _angle_to_pulse(DEFAULT_CLOSE_DEG)
-            for ch in SERVO_MAP.values():
-                self._set_pulse(ch, close_pulse)
+            # Fermer chaque panneau avec son angle calibré depuis la config
+            try:
+                import configparser, os
+                _MAIN  = '/home/artoo/r2d2/master/config/main.cfg'
+                _LOCAL = '/home/artoo/r2d2/master/config/local.cfg'
+                cfg = configparser.ConfigParser()
+                cfg.read([f for f in [_MAIN, _LOCAL] if os.path.exists(f)])
+                for name, ch in SERVO_MAP.items():
+                    angle = cfg.getint('servo_panels', f'{name}_close',
+                                       fallback=DEFAULT_CLOSE_DEG)
+                    angle = max(ANGLE_MIN_DEG, min(ANGLE_MAX_DEG, angle))
+                    self._set_pulse(ch, _angle_to_pulse(angle))
+            except Exception as e:
+                log.warning("shutdown: impossible de lire config servos: %s", e)
             time.sleep(0.3)
             try:
                 self._bus.write_byte_data(self._address, MODE1_REG, 0x10)  # SLEEP
@@ -147,10 +158,6 @@ class DomeServoDriver(BaseDriver):
         time.sleep(0.005)
         for ch in range(16):
             self._full_off(ch)
-        # Position fermée dès l'init — jamais de position 90° parasite
-        close_pulse = _angle_to_pulse(DEFAULT_CLOSE_DEG)
-        for ch in SERVO_MAP.values():
-            self._set_pulse(ch, close_pulse)
         log.info("PCA9685 @ 0x%02X initialisé 50Hz + RESTART", self._address)
 
     def _ensure_awake(self) -> None:
