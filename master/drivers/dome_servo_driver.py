@@ -1,11 +1,11 @@
 """
-Master Dome Servo Driver — Phase 2.
+Master Dome Servo Driver — Phase 2 (MG90S 180°).
 Pilote directement le PCA9685 I2C @ 0x40 via smbus2 (registres directs).
 11 servos panneaux dôme, canaux 0–10.
 
-Servo continu : 1500µs=STOP, 1600µs=ouverture lente, 1400µs=fermeture lente.
-open()  → envoie PULSE_OPEN_US  pendant duration_ms → STOP automatique
-close() → envoie PULSE_CLOSED_US pendant duration_ms → STOP automatique
+Servo MG90S 180° : pulse_us = 500 + (angle_deg / 180.0) * 2000
+open()  → va à open_angle_deg et maintient la position
+close() → va à close_angle_deg et maintient la position
 
 Formule 12-bit (registres PCA9685 hardware) :
     tick = int((pulse_us / 20000.0) * 4096)
@@ -22,21 +22,16 @@ from shared.base_driver import BaseDriver
 
 log = logging.getLogger(__name__)
 
-PCA9685_ADDRESS  = 0x40
-PCA9685_FREQ_HZ  = 50
-MODE1_REG        = 0x00
-PRE_SCALE_REG    = 0xFE
-# Prescale 50Hz : round(25_000_000 / (4096 * 50)) - 1 = 121
-PRE_SCALE_50HZ   = 121
+PCA9685_ADDRESS = 0x40
+PCA9685_FREQ_HZ = 50
+MODE1_REG       = 0x00
+PRE_SCALE_REG   = 0xFE
+PRE_SCALE_50HZ  = 121
 
-PULSE_STOP_US    = 1700   # point d'arrêt réel de ces SG90 (calibré sur bench)
-# Vitesses asymétriques (inévitable avec SG90 CR dont le stop ≠ 1500µs) :
-#   Open  : 2000µs → 300µs au-dessus du stop → vitesse lente
-#   Close : 1000µs → 700µs en-dessous du stop → ~2.3× plus rapide
-# → compenser via les angles open/close indépendants dans Settings → SERVO CALIBRATION
-#   ex: open_angle=70, close_angle=30 pour un déplacement équivalent
-PULSE_OPEN_US    = 2000   # sens ouverture
-PULSE_CLOSED_US  = 1000   # sens fermeture (plus rapide — compenser par close_angle)
+DEFAULT_OPEN_DEG  = 110   # angle ouverture MG90S (0–180°)
+DEFAULT_CLOSE_DEG =  20   # angle fermeture MG90S (0–180°)
+ANGLE_MIN_DEG     =  10   # sécurité matérielle
+ANGLE_MAX_DEG     = 170   # sécurité matérielle
 
 SERVO_MAP: dict[str, int] = {
     'dome_panel_1':   0,
@@ -53,6 +48,12 @@ SERVO_MAP: dict[str, int] = {
 }
 
 
+def _angle_to_pulse(angle_deg: float) -> float:
+    """Convertit un angle MG90S en µs pour PCA9685."""
+    angle_deg = max(ANGLE_MIN_DEG, min(ANGLE_MAX_DEG, angle_deg))
+    return 500.0 + (angle_deg / 180.0) * 2000.0
+
+
 def _pulse_to_tick(pulse_us: float) -> int:
     """Convertit µs en valeur 12-bit PCA9685 (registres hardware)."""
     return max(0, min(4095, int(pulse_us / 20000.0 * 4096)))
@@ -61,12 +62,11 @@ def _pulse_to_tick(pulse_us: float) -> int:
 class DomeServoDriver(BaseDriver):
 
     def __init__(self, i2c_address: int = PCA9685_ADDRESS):
-        self._address        = i2c_address
-        self._bus            = None
-        self._ready          = False
-        self._lock           = threading.Lock()
-        self._cancel_events: dict[int, threading.Event] = {}
-        self._error_count    = 0   # erreurs I2C consécutives
+        self._address     = i2c_address
+        self._bus         = None
+        self._ready       = False
+        self._lock        = threading.Lock()
+        self._error_count = 0
 
     def setup(self) -> bool:
         try:
@@ -82,11 +82,9 @@ class DomeServoDriver(BaseDriver):
             return False
 
     def shutdown(self) -> None:
-        for evt in self._cancel_events.values():
-            evt.set()
         if self._bus:
             for ch in SERVO_MAP.values():
-                self._set_pulse(ch, PULSE_STOP_US)
+                self._set_pulse(ch, _angle_to_pulse(90))  # centre neutre
             time.sleep(0.3)
             try:
                 self._bus.write_byte_data(self._address, MODE1_REG, 0x10)  # SLEEP
@@ -106,29 +104,30 @@ class DomeServoDriver(BaseDriver):
     # API publique
     # ------------------------------------------------------------------
 
-    def open(self, name: str, duration_ms: int = 300) -> bool:
-        return self._move(name, PULSE_OPEN_US, duration_ms)
+    def open(self, name: str, angle_deg: float = DEFAULT_OPEN_DEG) -> bool:
+        return self._move(name, angle_deg)
 
-    def close(self, name: str, duration_ms: int = 300) -> bool:
-        return self._move(name, PULSE_CLOSED_US, duration_ms)
+    def close(self, name: str, angle_deg: float = DEFAULT_CLOSE_DEG) -> bool:
+        return self._move(name, angle_deg)
 
-    def open_all(self, duration_ms: int = 300) -> None:
+    def open_all(self, angle_deg: float = DEFAULT_OPEN_DEG) -> None:
         for name in SERVO_MAP:
-            self.open(name, duration_ms)
+            self.open(name, angle_deg)
 
-    def close_all(self, duration_ms: int = 300) -> None:
+    def close_all(self, angle_deg: float = DEFAULT_CLOSE_DEG) -> None:
         for name in SERVO_MAP:
-            self.close(name, duration_ms)
+            self.close(name, angle_deg)
 
-    def move(self, name: str, position: float, duration_ms: int = 300) -> bool:
-        if position >= 0.5:
-            return self.open(name, duration_ms)
-        return self.close(name, duration_ms)
+    def move(self, name: str, position: float,
+             angle_open: float = DEFAULT_OPEN_DEG,
+             angle_close: float = DEFAULT_CLOSE_DEG) -> bool:
+        """position 0.0=fermé … 1.0=ouvert — interpolé entre angle_close et angle_open."""
+        angle = angle_close + max(0.0, min(1.0, position)) * (angle_open - angle_close)
+        return self._move(name, angle)
 
     @property
     def state(self) -> dict:
-        return {n: 'open' if n in self._cancel_events else 'closed'
-                for n in SERVO_MAP}
+        return {n: 'unknown' for n in SERVO_MAP}
 
     # ------------------------------------------------------------------
     # Interne
@@ -136,20 +135,15 @@ class DomeServoDriver(BaseDriver):
 
     def _init_chip(self) -> None:
         """Initialise le PCA9685 : fréquence 50Hz + zéro tous les canaux."""
-        # Réveil + reset
         self._bus.write_byte_data(self._address, MODE1_REG, 0x00)
         time.sleep(0.005)
-        # Passe en sleep pour écrire le prescale
         self._bus.write_byte_data(self._address, MODE1_REG, 0x10)
         time.sleep(0.005)
         self._bus.write_byte_data(self._address, PRE_SCALE_REG, PRE_SCALE_50HZ)
-        # Réveil
         self._bus.write_byte_data(self._address, MODE1_REG, 0x00)
         time.sleep(0.005)
-        # RESTART bit (0x80) — réactive tous les canaux PWM (comme la lib adafruit)
         self._bus.write_byte_data(self._address, MODE1_REG, 0x80)
         time.sleep(0.005)
-        # FULL OFF sur tous les canaux
         for ch in range(16):
             self._full_off(ch)
         log.info("PCA9685 @ 0x%02X initialisé 50Hz + RESTART", self._address)
@@ -174,9 +168,7 @@ class DomeServoDriver(BaseDriver):
         self._bus.write_byte_data(self._address, base + 3, 0x10)
 
     def _try_reinit(self) -> None:
-        """Ferme et rouvre le bus I2C + réinitialise le PCA9685 après erreurs répétées.
-        Appelé automatiquement après 3 erreurs I2C consécutives (ex: glitch électrique
-        lors d'un changement de servo ou bref court-circuit)."""
+        """Ferme et rouvre le bus I2C + réinitialise le PCA9685 après erreurs répétées."""
         try:
             if self._bus:
                 try:
@@ -187,8 +179,7 @@ class DomeServoDriver(BaseDriver):
             self._bus = smbus2.SMBus(1)
             self._init_chip()
             self._error_count = 0
-            log.info("PCA9685 @ 0x%02X réinitialisé avec succès après erreurs I2C",
-                     self._address)
+            log.info("PCA9685 @ 0x%02X réinitialisé après erreurs I2C", self._address)
         except Exception as e:
             log.error("Échec réinitialisation PCA9685 @ 0x%02X: %s", self._address, e)
 
@@ -201,7 +192,7 @@ class DomeServoDriver(BaseDriver):
                 self._bus.write_byte_data(self._address, base + 1, 0x00)
                 self._bus.write_byte_data(self._address, base + 2, tick & 0xFF)
                 self._bus.write_byte_data(self._address, base + 3, tick >> 8)
-                self._error_count = 0  # succès — reset compteur
+                self._error_count = 0
             except Exception as e:
                 self._error_count += 1
                 log.error("Erreur smbus2 canal dôme %d: %s (consécutive: %d)",
@@ -211,40 +202,16 @@ class DomeServoDriver(BaseDriver):
                                 self._address, self._error_count)
                     self._try_reinit()
 
-    def _move(self, name: str, pulse_us: int, duration_ms: int) -> bool:
+    def _move(self, name: str, angle_deg: float) -> bool:
         if not self._ready:
             log.warning("DomeServoDriver non prêt — commande ignorée (%r)", name)
             return False
         if name not in SERVO_MAP:
             log.warning("Panneau dôme inconnu: %r", name)
             return False
-        channel = SERVO_MAP[name]
-
-        if channel in self._cancel_events:
-            self._cancel_events[channel].set()
-            # Stop immédiat avant de démarrer la nouvelle commande — évite la dérive
-            # (sans ça, le servo passe directement de OPEN à CLOSE sans s'arrêter,
-            # et la durée effective est asymétrique → la position finale dérive)
-            self._set_pulse(channel, PULSE_STOP_US)
-            time.sleep(0.05)
-
-        cancel_evt = threading.Event()
-        self._cancel_events[channel] = cancel_evt
-
+        channel  = SERVO_MAP[name]
+        pulse_us = _angle_to_pulse(angle_deg)
         self._ensure_awake()
         self._set_pulse(channel, pulse_us)
-        log.info("Dome servo %r ch%d → %dµs (%dms)", name, channel, pulse_us, duration_ms)
-
-        if duration_ms > 0:
-            threading.Thread(
-                target=self._timed_stop,
-                args=(channel, duration_ms, cancel_evt),
-                daemon=True
-            ).start()
+        log.info("Dome servo %r ch%d → %.1f° (%.0fµs)", name, channel, angle_deg, pulse_us)
         return True
-
-    def _timed_stop(self, channel: int, duration_ms: int,
-                    cancel_evt: threading.Event) -> None:
-        time.sleep(duration_ms / 1000.0)
-        if not cancel_evt.is_set():
-            self._set_pulse(channel, PULSE_STOP_US)

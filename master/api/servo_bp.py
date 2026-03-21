@@ -1,17 +1,16 @@
 """
-Blueprint API Servo — Phase 4.
+Blueprint API Servo — Phase 4 (MG90S 180°).
 Contrôle les servos body (via UART → Slave) et dôme (local Master).
 
 Chaque panneau a son propre angle d'ouverture (open_angle) et de fermeture
-(close_angle). La durée envoyée au servo est calculée par :
-    duration_ms = angle / 90.0 * ms_90deg
+(close_angle). Les angles sont passés directement aux drivers — plus de calcul
+de durée (SG90 CR legacy supprimé).
 
 Config dans local.cfg, section [servo_panels] :
-    ms_90deg           = 150      # durée moteur pour 90° — global
-    dome_panel_1_open  = 70       # angle ouverture panneau 1 dôme
-    dome_panel_1_close = 70       # angle fermeture panneau 1 dôme
-    body_panel_1_open  = 70
-    body_panel_1_close = 70
+    dome_panel_1_open  = 110      # angle ouverture (10–170°)
+    dome_panel_1_close = 20       # angle fermeture (10–170°)
+    body_panel_1_open  = 110
+    body_panel_1_close = 20
     ...
 
 Endpoints dôme (Master PCA9685 @ 0x40 direct):
@@ -31,8 +30,8 @@ Endpoints body (Slave PCA9685 @ 0x41 via UART):
   GET  /servo/body/state
 
 Calibration:
-  GET  /servo/settings           → {ms_90deg, panels: {name: {open, close, open_ms, close_ms}}}
-  POST /servo/settings           → {ms_90deg, panels: {name: {open, close}}}
+  GET  /servo/settings           → {panels: {name: {open, close}}}
+  POST /servo/settings           → {panels: {name: {open, close}}}
 """
 
 import configparser
@@ -50,58 +49,55 @@ BODY_SERVOS = [f'body_panel_{i}' for i in range(1, 12)]
 DOME_SERVOS = [f'dome_panel_{i}' for i in range(1, 12)]
 _ALL_PANELS = DOME_SERVOS + BODY_SERVOS
 
-_DEFAULT_OPEN  = 70
-_DEFAULT_CLOSE = 70
-_DEFAULT_MS90  = 150
+_DEFAULT_OPEN  = 110
+_DEFAULT_CLOSE =  20
+_ANGLE_MIN     =  10
+_ANGLE_MAX     = 170
 
 
 # ================================================================
 # Helpers config per-panel
 # ================================================================
 
+def _clamp(val: int) -> int:
+    return max(_ANGLE_MIN, min(_ANGLE_MAX, val))
+
+
 def _read_panels_cfg() -> dict:
     """
-    Retourne {'ms_90deg': int, 'panels': {name: {'open': int, 'close': int,
-                                                  'open_ms': int, 'close_ms': int}}}
+    Retourne {'panels': {name: {'open': int, 'close': int}}}
     """
     cfg = configparser.ConfigParser()
     cfg.read([_MAIN_CFG, _LOCAL_CFG])
-    ms90 = max(50, cfg.getint('servo_panels', 'ms_90deg', fallback=_DEFAULT_MS90))
     panels = {}
     for name in _ALL_PANELS:
-        open_a  = max(0, min(90, cfg.getint('servo_panels', f'{name}_open',  fallback=_DEFAULT_OPEN)))
-        close_a = max(0, min(90, cfg.getint('servo_panels', f'{name}_close', fallback=_DEFAULT_CLOSE)))
-        panels[name] = {
-            'open':     open_a,
-            'close':    close_a,
-            'open_ms':  max(50, int(open_a  / 90.0 * ms90)),
-            'close_ms': max(50, int(close_a / 90.0 * ms90)),
-        }
-    return {'ms_90deg': ms90, 'panels': panels}
+        open_a  = _clamp(cfg.getint('servo_panels', f'{name}_open',  fallback=_DEFAULT_OPEN))
+        close_a = _clamp(cfg.getint('servo_panels', f'{name}_close', fallback=_DEFAULT_CLOSE))
+        panels[name] = {'open': open_a, 'close': close_a}
+    return {'panels': panels}
 
 
-def _write_panels_cfg(ms90: int, panels: dict) -> None:
+def _write_panels_cfg(panels: dict) -> None:
     cfg = configparser.ConfigParser()
     if os.path.exists(_LOCAL_CFG):
         cfg.read(_LOCAL_CFG)
     if not cfg.has_section('servo_panels'):
         cfg.add_section('servo_panels')
-    cfg.set('servo_panels', 'ms_90deg', str(ms90))
     for name, vals in panels.items():
         if name not in _ALL_PANELS:
             continue
         if 'open'  in vals:
-            cfg.set('servo_panels', f'{name}_open',  str(max(0, min(90, int(vals['open'])))))
+            cfg.set('servo_panels', f'{name}_open',  str(_clamp(int(vals['open']))))
         if 'close' in vals:
-            cfg.set('servo_panels', f'{name}_close', str(max(0, min(90, int(vals['close'])))))
+            cfg.set('servo_panels', f'{name}_close', str(_clamp(int(vals['close']))))
     with open(_LOCAL_CFG, 'w', encoding='utf-8') as f:
         cfg.write(f)
 
 
-def _panel_ms(name: str, direction: str, cfg: dict) -> int:
-    panel = cfg['panels'].get(name, {})
-    key   = 'open_ms' if direction == 'open' else 'close_ms'
-    return panel.get(key, max(50, int((_DEFAULT_OPEN / 90.0) * cfg['ms_90deg'])))
+def _panel_angle(name: str, direction: str, panels_cfg: dict) -> int:
+    panel = panels_cfg['panels'].get(name, {})
+    return panel.get('open' if direction == 'open' else 'close',
+                     _DEFAULT_OPEN if direction == 'open' else _DEFAULT_CLOSE)
 
 
 # ================================================================
@@ -125,12 +121,14 @@ def body_move():
     position = float(body.get('position', 0.0))
     if not name:
         return jsonify({'error': 'Champ "name" requis'}), 400
-    cfg      = _read_panels_cfg()
-    duration = int(body.get('duration') or _panel_ms(name, 'open' if position >= 0.5 else 'close', cfg))
+    cfg         = _read_panels_cfg()
+    open_angle  = _panel_angle(name, 'open',  cfg)
+    close_angle = _panel_angle(name, 'close', cfg)
     if reg.servo:
-        reg.servo.move(name, position, duration)
+        reg.servo.move(name, position, open_angle, close_angle)
     elif reg.uart:
-        reg.uart.send('SRV', f'{name},{position:.3f},{duration}')
+        angle = close_angle + max(0.0, min(1.0, position)) * (open_angle - close_angle)
+        reg.uart.send('SRV', f'{name},{angle:.1f}')
     return jsonify({'status': 'ok', 'name': name, 'position': position})
 
 
@@ -140,13 +138,13 @@ def body_open():
     name = body.get('name', '')
     if not name:
         return jsonify({'error': 'Champ "name" requis'}), 400
-    cfg      = _read_panels_cfg()
-    duration = int(body.get('duration') or _panel_ms(name, 'open', cfg))
+    cfg   = _read_panels_cfg()
+    angle = _panel_angle(name, 'open', cfg)
     if reg.servo:
-        reg.servo.open(name, duration)
+        reg.servo.open(name, angle)
     elif reg.uart:
-        reg.uart.send('SRV', f'{name},1.000,{duration}')
-    return jsonify({'status': 'ok', 'name': name, 'duration': duration})
+        reg.uart.send('SRV', f'{name},{angle}')
+    return jsonify({'status': 'ok', 'name': name, 'angle': angle})
 
 
 @servo_bp.post('/body/close')
@@ -155,24 +153,24 @@ def body_close():
     name = body.get('name', '')
     if not name:
         return jsonify({'error': 'Champ "name" requis'}), 400
-    cfg      = _read_panels_cfg()
-    duration = int(body.get('duration') or _panel_ms(name, 'close', cfg))
+    cfg   = _read_panels_cfg()
+    angle = _panel_angle(name, 'close', cfg)
     if reg.servo:
-        reg.servo.close(name, duration)
+        reg.servo.close(name, angle)
     elif reg.uart:
-        reg.uart.send('SRV', f'{name},0.000,{duration}')
-    return jsonify({'status': 'ok', 'name': name, 'duration': duration})
+        reg.uart.send('SRV', f'{name},{angle}')
+    return jsonify({'status': 'ok', 'name': name, 'angle': angle})
 
 
 @servo_bp.post('/body/open_all')
 def body_open_all():
     cfg = _read_panels_cfg()
     for name in BODY_SERVOS:
-        dur = _panel_ms(name, 'open', cfg)
+        angle = _panel_angle(name, 'open', cfg)
         if reg.servo:
-            reg.servo.open(name, dur)
+            reg.servo.open(name, angle)
         elif reg.uart:
-            reg.uart.send('SRV', f'{name},1.000,{dur}')
+            reg.uart.send('SRV', f'{name},{angle}')
     return jsonify({'status': 'ok'})
 
 
@@ -180,11 +178,11 @@ def body_open_all():
 def body_close_all():
     cfg = _read_panels_cfg()
     for name in BODY_SERVOS:
-        dur = _panel_ms(name, 'close', cfg)
+        angle = _panel_angle(name, 'close', cfg)
         if reg.servo:
-            reg.servo.close(name, dur)
+            reg.servo.close(name, angle)
         elif reg.uart:
-            reg.uart.send('SRV', f'{name},0.000,{dur}')
+            reg.uart.send('SRV', f'{name},{angle}')
     return jsonify({'status': 'ok'})
 
 
@@ -211,9 +209,10 @@ def dome_move():
         return jsonify({'error': 'Champ "name" requis'}), 400
     if not reg.dome_servo:
         return jsonify({'error': 'dome_servo driver non prêt — voir logs master'}), 503
-    cfg      = _read_panels_cfg()
-    duration = int(body.get('duration') or _panel_ms(name, 'open' if position >= 0.5 else 'close', cfg))
-    reg.dome_servo.move(name, position, duration)
+    cfg         = _read_panels_cfg()
+    open_angle  = _panel_angle(name, 'open',  cfg)
+    close_angle = _panel_angle(name, 'close', cfg)
+    reg.dome_servo.move(name, position, open_angle, close_angle)
     return jsonify({'status': 'ok', 'name': name, 'position': position})
 
 
@@ -225,10 +224,10 @@ def dome_open():
         return jsonify({'error': 'Champ "name" requis'}), 400
     if not reg.dome_servo:
         return jsonify({'error': 'dome_servo driver non prêt — voir logs master'}), 503
-    cfg      = _read_panels_cfg()
-    duration = int(body.get('duration') or _panel_ms(name, 'open', cfg))
-    reg.dome_servo.open(name, duration)
-    return jsonify({'status': 'ok', 'name': name, 'duration': duration})
+    cfg   = _read_panels_cfg()
+    angle = _panel_angle(name, 'open', cfg)
+    reg.dome_servo.open(name, angle)
+    return jsonify({'status': 'ok', 'name': name, 'angle': angle})
 
 
 @servo_bp.post('/dome/close')
@@ -239,10 +238,10 @@ def dome_close():
         return jsonify({'error': 'Champ "name" requis'}), 400
     if not reg.dome_servo:
         return jsonify({'error': 'dome_servo driver non prêt — voir logs master'}), 503
-    cfg      = _read_panels_cfg()
-    duration = int(body.get('duration') or _panel_ms(name, 'close', cfg))
-    reg.dome_servo.close(name, duration)
-    return jsonify({'status': 'ok', 'name': name, 'duration': duration})
+    cfg   = _read_panels_cfg()
+    angle = _panel_angle(name, 'close', cfg)
+    reg.dome_servo.close(name, angle)
+    return jsonify({'status': 'ok', 'name': name, 'angle': angle})
 
 
 @servo_bp.post('/dome/open_all')
@@ -251,7 +250,7 @@ def dome_open_all():
         return jsonify({'status': 'ok'})
     cfg = _read_panels_cfg()
     for name in DOME_SERVOS:
-        reg.dome_servo.open(name, _panel_ms(name, 'open', cfg))
+        reg.dome_servo.open(name, _panel_angle(name, 'open', cfg))
     return jsonify({'status': 'ok'})
 
 
@@ -261,7 +260,7 @@ def dome_close_all():
         return jsonify({'status': 'ok'})
     cfg = _read_panels_cfg()
     for name in DOME_SERVOS:
-        reg.dome_servo.close(name, _panel_ms(name, 'close', cfg))
+        reg.dome_servo.close(name, _panel_angle(name, 'close', cfg))
     return jsonify({'status': 'ok'})
 
 
@@ -285,14 +284,14 @@ def servo_state():
 def servo_open_all():
     cfg = _read_panels_cfg()
     for name in BODY_SERVOS:
-        dur = _panel_ms(name, 'open', cfg)
+        angle = _panel_angle(name, 'open', cfg)
         if reg.servo:
-            reg.servo.open(name, dur)
+            reg.servo.open(name, angle)
         elif reg.uart:
-            reg.uart.send('SRV', f'{name},1.000,{dur}')
+            reg.uart.send('SRV', f'{name},{angle}')
     if reg.dome_servo:
         for name in DOME_SERVOS:
-            reg.dome_servo.open(name, _panel_ms(name, 'open', cfg))
+            reg.dome_servo.open(name, _panel_angle(name, 'open', cfg))
     return jsonify({'status': 'ok'})
 
 
@@ -300,14 +299,14 @@ def servo_open_all():
 def servo_close_all():
     cfg = _read_panels_cfg()
     for name in BODY_SERVOS:
-        dur = _panel_ms(name, 'close', cfg)
+        angle = _panel_angle(name, 'close', cfg)
         if reg.servo:
-            reg.servo.close(name, dur)
+            reg.servo.close(name, angle)
         elif reg.uart:
-            reg.uart.send('SRV', f'{name},0.000,{dur}')
+            reg.uart.send('SRV', f'{name},{angle}')
     if reg.dome_servo:
         for name in DOME_SERVOS:
-            reg.dome_servo.close(name, _panel_ms(name, 'close', cfg))
+            reg.dome_servo.close(name, _panel_angle(name, 'close', cfg))
     return jsonify({'status': 'ok'})
 
 
@@ -322,14 +321,13 @@ def servo_settings_get():
 
 @servo_bp.post('/settings')
 def servo_settings_save():
-    data  = request.get_json(silent=True) or {}
-    ms90  = max(50, min(2000, int(data.get('ms_90deg', _DEFAULT_MS90))))
+    data   = request.get_json(silent=True) or {}
     panels = {}
     for name, vals in (data.get('panels') or {}).items():
         if name in _ALL_PANELS and isinstance(vals, dict):
             panels[name] = {
-                'open':  max(0, min(90, int(vals.get('open',  _DEFAULT_OPEN)))),
-                'close': max(0, min(90, int(vals.get('close', _DEFAULT_CLOSE)))),
+                'open':  _clamp(int(vals.get('open',  _DEFAULT_OPEN))),
+                'close': _clamp(int(vals.get('close', _DEFAULT_CLOSE))),
             }
-    _write_panels_cfg(ms90, panels)
+    _write_panels_cfg(panels)
     return jsonify(_read_panels_cfg())

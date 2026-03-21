@@ -1,36 +1,23 @@
 """
-Master Body Servo Driver — Phase 2.
+Master Body Servo Driver — Phase 2 (MG90S 180°).
 Envoie les commandes de servos body au Slave via UART (message SRV:).
 Le Slave exécute sur le PCA9685 I2C.
 
-Format UART: SRV:NAME,POSITION,DURATION
-  NAME     : nom du servo (ex: utility_arm_left)
-  POSITION : float [0.0 … 1.0] (0=fermé, 1=ouvert)
-  DURATION : int millisecondes
+Format UART: SRV:NAME,ANGLE_DEG
+  NAME      : nom du servo (ex: body_panel_1)
+  ANGLE_DEG : float — angle cible en degrés (10–170°)
 
-Servos body R2-D2 typiques:
-  utility_arm_left   — bras utilitaire gauche
-  utility_arm_right  — bras utilitaire droit
-  panel_front_top    — panneau avant haut
-  panel_front_bottom — panneau avant bas
-  panel_rear_top     — panneau arrière haut
-  panel_rear_bottom  — panneau arrière bas
-  charge_bay         — baie de charge
-
-Activation Phase 2:
-  1. Décommenter l'import dans master/main.py
-  2. Appeler servo.setup() dans main()
-  3. Configurer les canaux PCA9685 dans slave/config/servos.cfg
+Le Slave applique : pulse_us = 500 + (angle_deg / 180.0) * 2000
+Le servo MG90S maintient la position — pas de timer d'arrêt.
 """
 
 import logging
 
 log = logging.getLogger(__name__)
 
-# Durée par défaut d'un mouvement servo (ms)
-DEFAULT_DURATION_MS = 500
+DEFAULT_OPEN_DEG  = 110
+DEFAULT_CLOSE_DEG =  20
 
-# Catalogue des servos body connus (envoyés via UART → Slave PCA9685 @ 0x41)
 KNOWN_SERVOS = {
     'body_panel_1',  'body_panel_2',  'body_panel_3',
     'body_panel_4',  'body_panel_5',  'body_panel_6',
@@ -46,13 +33,12 @@ class BodyServoDriver:
     """
 
     def __init__(self, uart):
-        self._uart = uart
+        self._uart  = uart
         self._ready = False
-        self._positions: dict[str, float] = {}
 
     def setup(self) -> bool:
         self._ready = True
-        log.info(f"BodyServoDriver prêt ({len(KNOWN_SERVOS)} servos connus)")
+        log.info("BodyServoDriver prêt (%d servos connus)", len(KNOWN_SERVOS))
         return True
 
     def shutdown(self) -> None:
@@ -66,47 +52,38 @@ class BodyServoDriver:
     # API publique
     # ------------------------------------------------------------------
 
+    def open(self, name: str, angle_deg: float = DEFAULT_OPEN_DEG) -> bool:
+        return self._send(name, angle_deg)
+
+    def close(self, name: str, angle_deg: float = DEFAULT_CLOSE_DEG) -> bool:
+        return self._send(name, angle_deg)
+
     def move(self, name: str, position: float,
-             duration_ms: int = DEFAULT_DURATION_MS) -> bool:
-        """
-        Déplace un servo à une position donnée.
+             angle_open: float = DEFAULT_OPEN_DEG,
+             angle_close: float = DEFAULT_CLOSE_DEG) -> bool:
+        """position 0.0=fermé … 1.0=ouvert — interpolé entre angle_close et angle_open."""
+        angle = angle_close + max(0.0, min(1.0, position)) * (angle_open - angle_close)
+        return self._send(name, angle)
 
-        Parameters
-        ----------
-        name       : nom du servo
-        position   : float [0.0 … 1.0]
-        duration_ms: durée du mouvement en ms
-        """
-        position = max(0.0, min(1.0, position))
-        duration_ms = max(0, int(duration_ms))
-
-        if name not in KNOWN_SERVOS:
-            log.warning(f"Servo inconnu: {name!r}")
-
-        self._positions[name] = position
-        value = f"{name},{position:.3f},{duration_ms}"
-        ok = self._uart.send('SRV', value)
-        log.debug(f"Servo {name}: {position:.0%} en {duration_ms}ms")
-        return ok
-
-    def open(self, name: str, duration_ms: int = DEFAULT_DURATION_MS) -> bool:
-        """Ouvre un servo (position 1.0)."""
-        return self.move(name, 1.0, duration_ms)
-
-    def close(self, name: str, duration_ms: int = DEFAULT_DURATION_MS) -> bool:
-        """Ferme un servo (position 0.0)."""
-        return self.move(name, 0.0, duration_ms)
-
-    def open_all(self, duration_ms: int = DEFAULT_DURATION_MS) -> None:
-        """Ouvre tous les servos connus."""
+    def open_all(self, angle_deg: float = DEFAULT_OPEN_DEG) -> None:
         for name in KNOWN_SERVOS:
-            self.open(name, duration_ms)
+            self.open(name, angle_deg)
 
-    def close_all(self, duration_ms: int = DEFAULT_DURATION_MS) -> None:
-        """Ferme tous les servos connus."""
+    def close_all(self, angle_deg: float = DEFAULT_CLOSE_DEG) -> None:
         for name in KNOWN_SERVOS:
-            self.close(name, duration_ms)
+            self.close(name, angle_deg)
 
     @property
     def state(self) -> dict:
-        return dict(self._positions)
+        return {}
+
+    # ------------------------------------------------------------------
+    # Interne
+    # ------------------------------------------------------------------
+
+    def _send(self, name: str, angle_deg: float) -> bool:
+        if name not in KNOWN_SERVOS:
+            log.warning("Servo inconnu: %r", name)
+        ok = self._uart.send('SRV', f'{name},{angle_deg:.1f}')
+        log.debug("Servo %s → %.1f°", name, angle_deg)
+        return ok

@@ -1,10 +1,10 @@
 """
-Slave Body Servo Driver — Phase 2.
+Slave Body Servo Driver — Phase 2 (MG90S 180°).
 Reçoit les commandes SRV: du Master et pilote le PCA9685 I2C @ 0x41 via smbus2.
 
-Servo continu : 1500µs=STOP, 1600µs=ouverture lente, 1400µs=fermeture lente.
-open()  → envoie PULSE_OPEN_US  pendant duration_ms → STOP automatique
-close() → envoie PULSE_CLOSED_US pendant duration_ms → STOP automatique
+Servo MG90S 180° : pulse_us = 500 + (angle_deg / 180.0) * 2000
+open()  → va à open_angle_deg et maintient la position (pas de timer)
+close() → va à close_angle_deg et maintient la position
 
 Formule 12-bit (registres PCA9685 hardware) :
     tick = int((pulse_us / 20000.0) * 4096)
@@ -21,19 +21,16 @@ from shared.base_driver import BaseDriver
 
 log = logging.getLogger(__name__)
 
-PCA9685_ADDRESS  = 0x41
-PCA9685_FREQ_HZ  = 50
-MODE1_REG        = 0x00
-PRE_SCALE_REG    = 0xFE
-PRE_SCALE_50HZ   = 121
+PCA9685_ADDRESS = 0x41
+PCA9685_FREQ_HZ = 50
+MODE1_REG       = 0x00
+PRE_SCALE_REG   = 0xFE
+PRE_SCALE_50HZ  = 121
 
-PULSE_STOP_US    = 1700   # point d'arrêt réel de ces SG90 (calibré sur bench)
-# Vitesses asymétriques (inévitable avec SG90 CR dont le stop ≠ 1500µs) :
-#   Open  : 2000µs → 300µs au-dessus du stop → vitesse lente
-#   Close : 1000µs → 700µs en-dessous du stop → ~2.3× plus rapide
-# → compenser via les angles open/close indépendants dans Settings → SERVO CALIBRATION
-PULSE_OPEN_US    = 2000   # sens ouverture
-PULSE_CLOSED_US  = 1000   # sens fermeture (plus rapide — compenser par close_angle)
+DEFAULT_OPEN_DEG  = 110   # angle ouverture MG90S (0–180°)
+DEFAULT_CLOSE_DEG =  20   # angle fermeture MG90S (0–180°)
+ANGLE_MIN_DEG     =  10   # sécurité matérielle
+ANGLE_MAX_DEG     = 170   # sécurité matérielle
 
 SERVO_MAP: dict[str, int] = {
     'body_panel_1':   0,
@@ -50,6 +47,12 @@ SERVO_MAP: dict[str, int] = {
 }
 
 
+def _angle_to_pulse(angle_deg: float) -> float:
+    """Convertit un angle MG90S en µs pour PCA9685."""
+    angle_deg = max(ANGLE_MIN_DEG, min(ANGLE_MAX_DEG, angle_deg))
+    return 500.0 + (angle_deg / 180.0) * 2000.0
+
+
 def _pulse_to_tick(pulse_us: float) -> int:
     """Convertit µs en valeur 12-bit PCA9685 (registres hardware)."""
     return max(0, min(4095, int(pulse_us / 20000.0 * 4096)))
@@ -58,11 +61,10 @@ def _pulse_to_tick(pulse_us: float) -> int:
 class BodyServoDriver(BaseDriver):
 
     def __init__(self, i2c_address: int = PCA9685_ADDRESS):
-        self._address        = i2c_address
-        self._bus            = None
-        self._ready          = False
-        self._lock           = threading.Lock()
-        self._cancel_events: dict[int, threading.Event] = {}
+        self._address = i2c_address
+        self._bus     = None
+        self._ready   = False
+        self._lock    = threading.Lock()
 
     def setup(self) -> bool:
         try:
@@ -78,11 +80,9 @@ class BodyServoDriver(BaseDriver):
             return False
 
     def shutdown(self) -> None:
-        for evt in self._cancel_events.values():
-            evt.set()
         if self._bus:
             for ch in SERVO_MAP.values():
-                self._set_pulse(ch, PULSE_STOP_US)
+                self._set_pulse(ch, _angle_to_pulse(90))  # centre neutre
             time.sleep(0.3)
             try:
                 self._bus.write_byte_data(self._address, MODE1_REG, 0x10)  # SLEEP
@@ -102,38 +102,38 @@ class BodyServoDriver(BaseDriver):
     # API publique
     # ------------------------------------------------------------------
 
-    def open(self, name: str, duration_ms: int = 300) -> None:
-        self._move(name, PULSE_OPEN_US, duration_ms)
+    def open(self, name: str, angle_deg: float = DEFAULT_OPEN_DEG) -> None:
+        self._move(name, angle_deg)
 
-    def close(self, name: str, duration_ms: int = 300) -> None:
-        self._move(name, PULSE_CLOSED_US, duration_ms)
+    def close(self, name: str, angle_deg: float = DEFAULT_CLOSE_DEG) -> None:
+        self._move(name, angle_deg)
 
-    def open_all(self, duration_ms: int = 300) -> None:
+    def move(self, name: str, position: float,
+             angle_open: float = DEFAULT_OPEN_DEG,
+             angle_close: float = DEFAULT_CLOSE_DEG) -> None:
+        """position 0.0=fermé … 1.0=ouvert — interpolé entre angle_close et angle_open."""
+        angle = angle_close + max(0.0, min(1.0, position)) * (angle_open - angle_close)
+        self._move(name, angle)
+
+    def open_all(self, angle_deg: float = DEFAULT_OPEN_DEG) -> None:
         for name in SERVO_MAP:
-            self.open(name, duration_ms)
+            self.open(name, angle_deg)
 
-    def close_all(self, duration_ms: int = 300) -> None:
+    def close_all(self, angle_deg: float = DEFAULT_CLOSE_DEG) -> None:
         for name in SERVO_MAP:
-            self.close(name, duration_ms)
-
-    def move(self, name: str, position: float, duration_ms: int = 300) -> None:
-        if position >= 0.5:
-            self.open(name, duration_ms)
-        else:
-            self.close(name, duration_ms)
+            self.close(name, angle_deg)
 
     def handle_uart(self, value: str) -> None:
-        """Callback UART — SRV:NAME,POSITION,DURATION"""
+        """Callback UART — SRV:NAME,ANGLE_DEG"""
         try:
             parts = value.split(',')
-            self.move(parts[0], float(parts[1]), int(parts[2]))
+            self._move(parts[0], float(parts[1]))
         except (ValueError, IndexError) as e:
             log.error("Message SRV invalide %r: %s", value, e)
 
     @property
     def state(self) -> dict:
-        return {n: 'open' if n in self._cancel_events else 'closed'
-                for n in SERVO_MAP}
+        return {n: 'unknown' for n in SERVO_MAP}
 
     # ------------------------------------------------------------------
     # Interne
@@ -148,7 +148,6 @@ class BodyServoDriver(BaseDriver):
         self._bus.write_byte_data(self._address, PRE_SCALE_REG, PRE_SCALE_50HZ)
         self._bus.write_byte_data(self._address, MODE1_REG, 0x00)
         time.sleep(0.005)
-        # RESTART bit (0x80) — réactive tous les canaux PWM (comme la lib adafruit)
         self._bus.write_byte_data(self._address, MODE1_REG, 0x80)
         time.sleep(0.005)
         for ch in range(16):
@@ -185,37 +184,15 @@ class BodyServoDriver(BaseDriver):
             except Exception as e:
                 log.error("Erreur smbus2 canal body %d: %s", channel, e)
 
-    def _move(self, name: str, pulse_us: int, duration_ms: int) -> None:
+    def _move(self, name: str, angle_deg: float) -> None:
         if not self._ready:
             log.warning("BodyServoDriver non prêt — commande ignorée (%r)", name)
             return
         if name not in SERVO_MAP:
             log.warning("Servo inconnu: %r", name)
             return
-        channel = SERVO_MAP[name]
-
-        if channel in self._cancel_events:
-            self._cancel_events[channel].set()
-            # Stop immédiat avant nouvelle commande — évite la dérive de position
-            self._set_pulse(channel, PULSE_STOP_US)
-            time.sleep(0.05)
-
-        cancel_evt = threading.Event()
-        self._cancel_events[channel] = cancel_evt
-
+        channel  = SERVO_MAP[name]
+        pulse_us = _angle_to_pulse(angle_deg)
         self._ensure_awake()
         self._set_pulse(channel, pulse_us)
-        log.info("Body servo %r ch%d → %dµs (%dms)", name, channel, pulse_us, duration_ms)
-
-        if duration_ms > 0:
-            threading.Thread(
-                target=self._timed_stop,
-                args=(channel, duration_ms, cancel_evt),
-                daemon=True
-            ).start()
-
-    def _timed_stop(self, channel: int, duration_ms: int,
-                    cancel_evt: threading.Event) -> None:
-        time.sleep(duration_ms / 1000.0)
-        if not cancel_evt.is_set():
-            self._set_pulse(channel, PULSE_STOP_US)
+        log.info("Body servo %r ch%d → %.1f° (%.0fµs)", name, channel, angle_deg, pulse_us)
