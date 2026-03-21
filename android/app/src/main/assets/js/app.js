@@ -1125,8 +1125,7 @@ class StatusPoller {
     this._setOffline(false);
 
     this._setPill('pill-heartbeat', data.heartbeat_ok, 'HB');
-    this._setPill('pill-uart',      data.uart_ready,   'UART');
-    this._setHealthPill(data.uart_health);
+    this._setUartPill(data.uart_ready, data.uart_health, data.uart_crc_errors ?? 0);
 
     const version = el('pill-version');
     if (version) version.textContent = 'v' + (data.version || '?');
@@ -1185,7 +1184,7 @@ class StatusPoller {
     this._offline = offline;
     const pillOffline = el('pill-offline');
     if (pillOffline) pillOffline.style.display = offline ? '' : 'none';
-    ['pill-heartbeat', 'pill-uart', 'pill-uart-health', 'pill-bt', 'pill-version'].forEach(id => {
+    ['pill-heartbeat', 'pill-uart', 'pill-bt', 'pill-version'].forEach(id => {
       const p = el(id);
       if (p) p.style.display = offline ? 'none' : '';
     });
@@ -1197,20 +1196,37 @@ class StatusPoller {
     }
   }
 
-  _setHealthPill(h) {
-    const p = el('pill-uart-health');
+  _setUartPill(uartReady, health, masterCrcErrors) {
+    const p = el('pill-uart');
     if (!p) return;
     const dot = p.querySelector('.pulse-dot');
-    let cls, label;
-    if (h == null) {
-      cls   = 'status-pill';          // gris — Slave injoignable
-      label = 'BUS ?%';
+    let cls, label, tooltip;
+
+    if (!uartReady) {
+      // Port série pas ouvert — erreur niveau OS
+      cls     = 'status-pill error';
+      label   = 'UART';
+      tooltip = 'Port série non ouvert';
+    } else if (health == null) {
+      // Port ouvert mais Slave pas encore pollé / injoignable
+      cls     = masterCrcErrors > 0 ? 'status-pill warn' : 'status-pill ok';
+      label   = masterCrcErrors > 0 ? 'UART ERR' : 'UART';
+      tooltip = masterCrcErrors > 0
+        ? `Slave injoignable | Master CRC invalides: ${masterCrcErrors}`
+        : 'Slave pas encore pollé';
     } else {
-      const pct = h.health_pct;
-      cls   = 'status-pill ' + (pct >= 80 ? 'ok' : 'warn');
-      label = 'BUS ' + pct.toFixed(1) + '%';
+      // Port ouvert + données qualité disponibles — 3 niveaux
+      const pct = health.health_pct;
+      if      (pct >= 95) cls = 'status-pill ok';
+      else if (pct >= 70) cls = 'status-pill warn';
+      else                cls = 'status-pill error';
+      label   = 'UART ' + pct.toFixed(0) + '%';
+      tooltip = `${health.errors} erreurs / ${health.total} msg (${health.window_s}s)`
+              + (masterCrcErrors > 0 ? ` | Master CRC invalides: ${masterCrcErrors}` : '');
     }
+
     p.className = cls;
+    p.title     = tooltip;
     if (dot) {
       for (const node of p.childNodes) {
         if (node.nodeType === Node.TEXT_NODE) node.textContent = label;
