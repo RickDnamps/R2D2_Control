@@ -83,8 +83,9 @@ class DomeServoDriver(BaseDriver):
 
     def shutdown(self) -> None:
         if self._bus:
+            close_pulse = _angle_to_pulse(DEFAULT_CLOSE_DEG)
             for ch in SERVO_MAP.values():
-                self._set_pulse(ch, _angle_to_pulse(90))  # centre neutre
+                self._set_pulse(ch, close_pulse)
             time.sleep(0.3)
             try:
                 self._bus.write_byte_data(self._address, MODE1_REG, 0x10)  # SLEEP
@@ -146,6 +147,10 @@ class DomeServoDriver(BaseDriver):
         time.sleep(0.005)
         for ch in range(16):
             self._full_off(ch)
+        # Position fermée dès l'init — jamais de position 90° parasite
+        close_pulse = _angle_to_pulse(DEFAULT_CLOSE_DEG)
+        for ch in SERVO_MAP.values():
+            self._set_pulse(ch, close_pulse)
         log.info("PCA9685 @ 0x%02X initialisé 50Hz + RESTART", self._address)
 
     def _ensure_awake(self) -> None:
