@@ -234,6 +234,8 @@ body::after {
 
 .tabbar::-webkit-scrollbar { display: none; }
 
+.tab-spacer { flex: 1; }  /* pousse les onglets suivants à droite */
+
 .tab {
   flex: 0 0 auto;
   background: none;
@@ -1417,16 +1419,18 @@ body::after {
 .servo-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: 4px;
+  padding: 5px 0;
   border-bottom: 1px solid rgba(0,170,255,0.06);
+  min-width: 0;
 }
 
 .servo-name {
-  flex: 1;
-  font-size: 11px;
+  width: 22px;
+  flex: none;
+  font-size: 10px;
   color: var(--text-dim);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
 }
 
@@ -1450,8 +1454,10 @@ body::after {
 /* Servo per-panel calibration inputs */
 .servo-calib-wrap {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   align-items: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .servo-calib-label {
@@ -1464,13 +1470,13 @@ body::after {
 }
 
 .servo-angle-in {
-  width: 52px;
-  padding: 2px 6px;
+  width: 38px;
+  padding: 2px 4px;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 3px;
   color: var(--text);
-  font-size: 12px;
+  font-size: 11px;
   text-align: center;
 }
 .servo-angle-in::-webkit-inner-spin-button,
@@ -1640,6 +1646,7 @@ body::after {
 .btn:active { opacity: 0.7; }
 
 .btn.btn-sm    { padding: 5px 10px; font-size: 10px; }
+.btn.btn-xs    { padding: 3px 6px;  font-size: 9px; letter-spacing: 0.5px; }
 .btn.btn-active { background: rgba(0, 100, 200, 0.3); border-color: var(--blue); color: var(--blue); }
 .btn.btn-dark   { background: rgba(0, 0, 0, 0.4); }
 .btn.btn-danger { background: rgba(60, 0, 15, 0.6); border-color: var(--red); color: var(--red); }
